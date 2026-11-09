@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { Candle, EventView, RuleView } from '../../shared/types';
 import { api } from '../api';
-import { useAppData, useLiveVersion, useToast } from '../context';
+import { useAppData, useToast } from '../context';
 import {
   aggregateTone,
   deliveryTone,
@@ -28,6 +28,15 @@ import {
 } from '../lib/format';
 import { ErrorBanner, LoadingBlock, PageHeader, StatusPill } from '../components/ui';
 import { MarketChart } from '../components/MarketChart';
+import { ChartIndicatorPanel } from '../components/ChartIndicatorPanel';
+import {
+  chartIndicatorLegend,
+  loadChartIndicatorSettings,
+  saveChartIndicatorSettings,
+  toggleChartIndicator,
+  type ChartIndicatorKey,
+  type ChartIndicatorSettings,
+} from '../lib/chartIndicators';
 
 const timeframes = ['1m', '5m', '15m', '1H', '4H'];
 
@@ -49,14 +58,24 @@ function statusDot(tone: string): string {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { data, loading, error, refresh } = useAppData();
-  const liveVersion = useLiveVersion();
   const { showToast } = useToast();
   const [timeframe, setTimeframe] = useState('5m');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);
+  const [chartRefreshKey, setChartRefreshKey] = useState(0);
   const [chartSymbol, setChartSymbol] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [indicatorSettings, setIndicatorSettings] = useState<ChartIndicatorSettings>(() => loadChartIndicatorSettings());
+
+  const applyIndicatorSettings = (next: ChartIndicatorSettings) => {
+    setIndicatorSettings(next);
+    saveChartIndicatorSettings(next);
+  };
+  const toggleIndicator = (key: ChartIndicatorKey) => {
+    applyIndicatorSettings(toggleChartIndicator(indicatorSettings, key));
+  };
+  const indicatorLegend = useMemo(() => chartIndicatorLegend(indicatorSettings), [indicatorSettings]);
 
   const fallbackSymbol = data?.rules.find((rule) => rule.enabled && rule.symbols.length)?.symbols[0];
   const availableSymbols = useMemo(() => {
@@ -70,29 +89,41 @@ export function DashboardPage() {
     if (!chartSymbol && availableSymbols.length) setChartSymbol(availableSymbols[0]);
   }, [availableSymbols, chartSymbol]);
 
+  const hasData = Boolean(data);
   useEffect(() => {
-    if (!data) return;
+    if (!hasData) return;
     let cancelled = false;
+    let timer: number | undefined;
+
+    // Fetch on symbol/timeframe changes, then refresh on a slow cadence. Do not
+    // refetch on every dashboard SSE tick: the candles endpoint may take ~500ms
+    // and a fast live feed would otherwise cancel each request before it lands.
+    setCandles([]);
     setChartLoading(true);
     setChartError(null);
-    api
-      .candles(activeSymbol, timeframe, 240)
-      .then((response) => {
-        if (cancelled) return;
-        setCandles(response.candles);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setCandles([]);
-        setChartError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setChartLoading(false);
-      });
+    const load = () => {
+      api
+        .candles(activeSymbol, timeframe, 240)
+        .then((response) => {
+          if (cancelled) return;
+          setCandles(response.candles);
+          setChartError(null);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setChartError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (!cancelled) setChartLoading(false);
+        });
+    };
+    load();
+    timer = window.setInterval(load, 15_000);
     return () => {
       cancelled = true;
+      if (timer !== undefined) window.clearInterval(timer);
     };
-  }, [activeSymbol, timeframe, liveVersion, data]);
+  }, [activeSymbol, timeframe, hasData, chartRefreshKey]);
 
   const lastCandle = candles.at(-1);
   const previousCandle = candles.at(-2);
@@ -102,6 +133,7 @@ export function DashboardPage() {
   async function handleRefresh() {
     setRefreshing(true);
     await refresh();
+    setChartRefreshKey((value) => value + 1);
     setRefreshing(false);
     showToast('已刷新当前状态', 'info');
   }
@@ -313,21 +345,38 @@ export function DashboardPage() {
                 <button key={tf} type="button" className={tf === timeframe ? 'active' : ''} onClick={() => setTimeframe(tf)}>{tf}</button>
               ))}
             </div>
+            <ChartIndicatorPanel settings={indicatorSettings} onChange={applyIndicatorSettings} />
           </div>
         </div>
         <div className="chart-legend-real">
-          <span><span className="legend-swatch" style={{ background: '#71a7ff' }} />BOLL(20, 2)</span>
-          <span><span className="legend-swatch" style={{ background: '#31d7c2' }} />收盘价</span>
-          <span><span className="legend-swatch" style={{ background: '#efb45d' }} />规则触发</span>
-          <span className="chart-hint">已收盘 K 线为主 · 盘中模式会展示当前形成中的 K 线</span>
+          {indicatorLegend.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="chart-legend-chip"
+              data-indicator={item.key}
+              aria-pressed="true"
+              title={`隐藏 ${item.label}`}
+              onClick={() => toggleIndicator(item.key)}
+            >
+              <span className="legend-swatch" style={{ background: item.color }} />
+              {item.label}
+            </button>
+          ))}
+          <span className="legend-key"><span className="legend-swatch" style={{ background: '#31d7c2' }} />收盘价</span>
+          <span className="legend-key"><span className="legend-swatch" style={{ background: '#efb45d' }} />规则触发</span>
+          <span className="chart-hint">已收盘 K 线为主 · 点击图例隐藏指标 · 盘中模式展示形成中的 K 线</span>
         </div>
         {chartError ? (
-          <div style={{ padding: '0 18px 16px' }}><ErrorBanner message={chartError} onRetry={() => setTimeframe((value) => value)} /></div>
-        ) : chartLoading && candles.length === 0 ? (
+          <div style={{ padding: '0 18px 10px' }}>
+            <ErrorBanner message={chartError} onRetry={() => setChartRefreshKey((value) => value + 1)} />
+          </div>
+        ) : null}
+        {chartLoading && candles.length === 0 ? (
           <LoadingBlock text="正在加载 K 线…" />
         ) : (
           <div style={{ padding: '0 8px 2px' }}>
-            <MarketChart candles={candles} timeframe={timeframe} height={335} markers={[]} />
+            <MarketChart candles={candles} timeframe={timeframe} height={335} markers={[]} indicatorSettings={indicatorSettings} />
           </div>
         )}
         <div className="chart-foot-real">

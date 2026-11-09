@@ -99,6 +99,37 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByRole('dialog')).not.toBeVisible();
   });
 
+
+  test('chart indicators can be enabled, configured, hidden and persisted', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('market-chart')).toBeVisible();
+    await expect(page.locator('.chart-legend-chip[data-indicator="boll"]')).toContainText('BOLL(20,2)');
+    await expect(page.locator('.chart-legend-chip[data-indicator="volume"]')).toContainText('VOL(20)');
+
+    await page.getByTestId('chart-indicators-button').click();
+    await expect(page.getByTestId('chart-indicator-panel')).toBeVisible();
+    await page.getByTestId('indicator-toggle-kdj').check();
+    await page.getByTestId('indicator-kdj-length').fill('12');
+    await page.getByTestId('indicator-toggle-rsi').check();
+    await page.getByTestId('indicator-rsi-length').fill('21');
+
+    await expect(page.locator('.chart-legend-chip[data-indicator="kdj"]')).toContainText('KDJ(12,3,3)');
+    await expect(page.locator('.chart-legend-chip[data-indicator="rsi"]')).toContainText('RSI(21)');
+    await expect(page.getByTestId('market-chart')).toHaveAttribute('data-chart-indicators', 'volume,kdj,rsi');
+    await page.getByRole('button', { name: '关闭指标设置' }).click();
+
+    await page.reload();
+    await expect(page.locator('.chart-legend-chip[data-indicator="kdj"]')).toContainText('KDJ(12,3,3)');
+    await expect(page.locator('.chart-legend-chip[data-indicator="rsi"]')).toContainText('RSI(21)');
+    await expect(page.getByTestId('market-chart')).toHaveAttribute('data-chart-indicators', 'volume,kdj,rsi');
+
+    await page.locator('.chart-legend-chip[data-indicator="volume"]').click();
+    await expect(page.getByTestId('market-chart')).toHaveAttribute('data-chart-indicators', 'kdj,rsi');
+    await page.getByTestId('chart-indicators-button').click();
+    await page.getByTestId('indicator-toggle-volume').check();
+    await expect(page.getByTestId('market-chart')).toHaveAttribute('data-chart-indicators', 'volume,kdj,rsi');
+  });
+
   test.afterAll(async () => {
     expect(consoleErrors, `browser errors: ${consoleErrors.join('\n')}`).toEqual([]);
   });

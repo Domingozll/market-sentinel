@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Configurable market chart indicators: independently toggle BOLL, volume, KDJ, RSI and MACD, adjust their parameters in the chart panel, and persist the selection in the browser.
+- Chart legend chips now toggle indicators directly, with parameter labels such as `KDJ(15,3,3)`.
+
+### Fixed
+
+- The dashboard chart no longer refetches on every SSE tick, which could cancel requests and leave the chart stuck on “loading” when the candles endpoint was slow.
+- Failed background chart refreshes keep the last successful candles instead of clearing the chart.
+
 ### Planned
 
 - Multiple Discord webhooks and per-rule routing
