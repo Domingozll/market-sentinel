@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a reproducible defect in Market Sentinel
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please remove real Discord webhook URLs, proxy credentials and personal data before submitting.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Create a rule with ...
+        2. Wait for ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: v1.0.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Docker Compose
+        - Local npm / Node
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js, Docker/Compose, browser, OKX symbols/timeframes involved.
+      placeholder: macOS 26, Node 24.22, Docker 29.6, Chrome 156, BTC-USDT-SWAP 5m
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / diagnostics
+      description: Redact webhook tokens and credentials. Screenshots are welcome.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed secrets (webhook URL, proxy credentials) from this report.
+          required: true
+        - label: I searched existing issues.
+          required: true
+        - label: I can reproduce this on the latest main branch or release.
+          required: true

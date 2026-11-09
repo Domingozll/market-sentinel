@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Design document
+    url: https://github.com/Domingozll/market-sentinel/blob/main/docs/DESIGN.md
+    about: Read the rule semantics, indicators and UX design before proposing a behavior change.
+  - name: Security policy
+    url: https://github.com/Domingozll/market-sentinel/blob/main/SECURITY.md
+    about: Please do not disclose vulnerabilities or real webhook tokens in public issues.

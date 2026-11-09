@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a new indicator, rule capability or integration
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What monitoring problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the rule semantics, inputs, outputs and edge cases.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Indicator / formula
+        - Rule engine semantics
+        - UI / UX
+        - Discord / notifications
+        - Market data / exchange
+        - Operations / Docker
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Design constraints
+      options:
+        - label: I understand rules are currently simultaneous AND/OR expressions, not sequence rules.
+        - label: I agree that uncertain/stale data should not produce notifications.
+        - label: I am willing to help test or implement this.

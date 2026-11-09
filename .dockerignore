@@ -1,0 +1,14 @@
+node_modules
+dist
+data
+.env
+.git
+.github
+.playwright
+test-results
+playwright-report
+coverage
+artifacts
+docs
+tests
+README.md

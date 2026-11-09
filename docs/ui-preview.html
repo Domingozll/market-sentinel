@@ -1,0 +1,2560 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行情哨兵 · UI 设计预览</title>
+<style>
+  :root{
+    --bg:#080c11;
+    --bg-2:#0a1017;
+    --panel:#0f161f;
+    --panel-2:#121b26;
+    --panel-3:#16222e;
+    --line:#202d3b;
+    --line-soft:#192430;
+    --text:#e8eef6;
+    --muted:#8b9bad;
+    --faint:#607083;
+    --accent:#31d7c2;
+    --accent-2:#8ff6e8;
+    --accent-dim:rgba(49,215,194,.10);
+    --up:#2fd486;
+    --down:#f0616a;
+    --warn:#efb45d;
+    --info:#71a7ff;
+    --radius:12px;
+    --mono:"SFMono-Regular",ui-monospace,"Cascadia Code","Roboto Mono",Menlo,Consolas,monospace;
+    --ui:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:dark;scroll-behavior:smooth}
+  body{
+    margin:0;
+    min-width:960px;
+    color:var(--text);
+    background:var(--bg);
+    font-family:var(--ui);
+    font-size:14px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    font-variant-numeric:tabular-nums;
+  }
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    background:
+      radial-gradient(900px 520px at 18% -8%,rgba(49,215,194,.075),transparent 65%),
+      radial-gradient(780px 500px at 92% 0%,rgba(81,124,255,.055),transparent 70%);
+  }
+  button,input,select,textarea{font:inherit}
+  button{color:inherit}
+  a{color:inherit;text-decoration:none}
+  svg{display:block}
+  ::selection{background:rgba(49,215,194,.24);color:#fff}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#263445;border:3px solid var(--bg);border-radius:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  .mono{font-family:var(--mono);font-feature-settings:"tnum" 1}
+  .muted{color:var(--muted)}
+  .faint{color:var(--faint)}
+  .up{color:var(--up)}
+  .down{color:var(--down)}
+  .warn{color:var(--warn)}
+
+  /* Design preview banner */
+  .preview-banner{
+    position:relative;
+    z-index:20;
+    height:32px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    color:#9eb9b4;
+    background:linear-gradient(90deg,rgba(20,44,44,.92),rgba(12,28,32,.96));
+    border-bottom:1px solid #1b3638;
+    font-size:11.5px;
+    letter-spacing:.04em;
+  }
+  .preview-banner .tag{
+    padding:2px 7px;
+    border:1px solid rgba(49,215,194,.26);
+    border-radius:999px;
+    color:var(--accent);
+    background:rgba(49,215,194,.08);
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:.08em;
+  }
+
+  .app{
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:226px minmax(0,1fr);
+    min-height:calc(100vh - 32px);
+  }
+
+  /* Sidebar */
+  .sidebar{
+    position:sticky;
+    top:0;
+    align-self:start;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    background:linear-gradient(180deg,rgba(10,16,23,.96),rgba(8,12,17,.99));
+    border-right:1px solid var(--line-soft);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:22px 20px 21px;
+  }
+  .brand-mark{
+    width:35px;
+    height:35px;
+    border-radius:10px;
+    display:grid;
+    place-items:center;
+    color:#05211e;
+    background:linear-gradient(145deg,#7ff8e8,#25c8b2);
+    box-shadow:0 0 0 1px rgba(120,255,240,.3),0 8px 24px rgba(31,211,190,.15);
+    flex:0 0 auto;
+  }
+  .brand-mark svg{width:21px;height:21px}
+  .brand-name{font-weight:650;font-size:14.5px;letter-spacing:.06em}
+  .brand-sub{
+    margin-top:2px;
+    color:var(--faint);
+    font-family:var(--mono);
+    font-size:8.5px;
+    letter-spacing:.15em;
+  }
+  .nav-group{padding:6px 12px}
+  .nav-label{
+    padding:9px 10px 7px;
+    color:#556577;
+    font-size:10px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+  }
+  .nav-item{
+    position:relative;
+    width:100%;
+    border:0;
+    background:transparent;
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:10px 11px;
+    margin:2px 0;
+    border-radius:8px;
+    color:#8c9bae;
+    font-size:13px;
+    text-align:left;
+    cursor:pointer;
+    transition:background .16s ease,color .16s ease;
+  }
+  .nav-item svg{width:17px;height:17px;flex:0 0 auto;opacity:.9}
+  .nav-item span{flex:1}
+  .nav-item .nav-count{
+    min-width:20px;
+    padding:1px 6px;
+    border-radius:999px;
+    background:#15212c;
+    color:#8294a8;
+    font-family:var(--mono);
+    font-size:10px;
+    text-align:center;
+    line-height:18px;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.035);color:var(--text)}
+  .nav-item.active{
+    color:#e9fdf9;
+    background:linear-gradient(90deg,rgba(49,215,194,.13),rgba(49,215,194,.035));
+  }
+  .nav-item.active::before{
+    content:"";
+    position:absolute;
+    left:0;
+    top:9px;
+    bottom:9px;
+    width:2px;
+    border-radius:2px;
+    background:var(--accent);
+    box-shadow:0 0 12px rgba(49,215,194,.55);
+  }
+  .nav-item.active svg{color:var(--accent);opacity:1}
+  .sidebar-spacer{flex:1}
+  .side-status{
+    margin:0 14px 12px;
+    padding:13px 13px 12px;
+    border:1px solid #1a2c31;
+    border-radius:10px;
+    background:linear-gradient(145deg,rgba(25,48,46,.42),rgba(13,20,26,.5));
+  }
+  .side-status-head{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-size:11.5px;
+    color:#b8d9d3;
+  }
+  .side-status-meta{
+    display:flex;
+    justify-content:space-between;
+    margin-top:8px;
+    color:#607782;
+    font-family:var(--mono);
+    font-size:9.5px;
+  }
+  .side-foot{
+    padding:0 20px 18px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    color:#465667;
+    font-size:9.5px;
+    letter-spacing:.03em;
+  }
+  .side-foot .version{font-family:var(--mono)}
+  .green-dot,.red-dot,.warn-dot,.blue-dot{
+    width:6px;height:6px;border-radius:50%;flex:0 0 auto;display:inline-block;
+  }
+  .green-dot{background:var(--up);box-shadow:0 0 0 3px rgba(47,212,134,.1),0 0 10px rgba(47,212,134,.32)}
+  .red-dot{background:var(--down);box-shadow:0 0 0 3px rgba(240,97,106,.1)}
+  .warn-dot{background:var(--warn);box-shadow:0 0 0 3px rgba(239,180,93,.09)}
+  .blue-dot{background:var(--info);box-shadow:0 0 0 3px rgba(113,167,255,.1)}
+
+  /* Main shell */
+  .main{min-width:0;display:flex;flex-direction:column}
+  .topbar{
+    position:sticky;
+    top:0;
+    z-index:12;
+    height:64px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 30px;
+    border-bottom:1px solid var(--line-soft);
+    background:rgba(8,12,17,.82);
+    backdrop-filter:blur(16px);
+  }
+  .crumb{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:#617184;
+    font-size:11.5px;
+    letter-spacing:.02em;
+  }
+  .crumb b{color:#a8b6c5;font-weight:500}
+  .crumb .sep{color:#334251}
+  .top-right{display:flex;align-items:center;gap:17px}
+  .market-state{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 10px;
+    border:1px solid #1c312e;
+    border-radius:999px;
+    background:rgba(19,43,38,.36);
+    color:#a9cec5;
+    font-size:11px;
+  }
+  .market-state .latency{font-family:var(--mono);font-size:9.5px;color:#627c7a;padding-left:7px;border-left:1px solid #233b39}
+  .discord-state{display:flex;align-items:center;gap:7px;color:#75879a;font-size:11px}
+  .clock{font-family:var(--mono);font-size:10.5px;color:#607184;letter-spacing:.02em;white-space:nowrap}
+  .avatar{
+    width:27px;height:27px;border-radius:8px;
+    display:grid;place-items:center;
+    border:1px solid #2a3948;
+    background:#131e28;
+    color:#a6b7c7;
+    font-family:var(--mono);font-size:9px;
+  }
+
+  .content{
+    width:100%;
+    max-width:1540px;
+    margin:0 auto;
+    padding:28px 30px 54px;
+  }
+  .page{display:none}
+  .page.active{display:block;animation:pageIn .22s ease}
+  @keyframes pageIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  .page-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:24px;
+    margin-bottom:20px;
+  }
+  .eyebrow{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    color:#627586;
+    font-size:10px;
+    letter-spacing:.15em;
+    text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  h1{
+    margin:0;
+    font-size:26px;
+    line-height:1.16;
+    letter-spacing:-.02em;
+    font-weight:630;
+  }
+  h2{margin:0;font-size:14px;font-weight:580;letter-spacing:-.005em}
+  .page-sub{
+    margin:7px 0 0;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .page-head .actions{display:flex;align-items:center;gap:8px;margin-top:4px;flex:0 0 auto}
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    height:34px;
+    padding:0 13px;
+    border-radius:8px;
+    border:1px solid transparent;
+    font-size:12px;
+    font-weight:550;
+    cursor:pointer;
+    transition:background .16s ease,border-color .16s ease,transform .12s ease;
+    white-space:nowrap;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn svg{width:14px;height:14px}
+  .btn-primary{
+    color:#03221e;
+    background:linear-gradient(180deg,#6df2e2,#2dd2be);
+    border-color:#83f6e8;
+    box-shadow:0 4px 16px rgba(49,215,194,.12),inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .btn-primary:hover{background:linear-gradient(180deg,#8bf8ea,#3cddc9)}
+  .btn-secondary{
+    color:#bccad7;
+    background:#111a23;
+    border-color:#2a3a49;
+  }
+  .btn-secondary:hover{background:#15212c;border-color:#364a5c;color:#e4edf6}
+  .btn-ghost{
+    color:#93a4b6;
+    background:transparent;
+    border-color:transparent;
+  }
+  .btn-ghost:hover{color:var(--text);background:rgba(255,255,255,.04)}
+  .btn-sm{height:29px;padding:0 10px;font-size:11px;border-radius:7px}
+  .btn-danger{color:#ffb4b8;background:rgba(240,97,106,.08);border-color:rgba(240,97,106,.24)}
+  .btn[disabled]{opacity:.4;pointer-events:none}
+
+  .cards-4{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:13px;
+    margin-bottom:16px;
+  }
+  .metric{
+    position:relative;
+    padding:16px 17px 14px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:linear-gradient(155deg,rgba(19,28,38,.88),rgba(13,20,27,.92));
+    overflow:hidden;
+  }
+  .metric::after{
+    content:"";
+    position:absolute;
+    right:-32px;bottom:-52px;
+    width:140px;height:100px;
+    background:radial-gradient(closest-side,rgba(49,215,194,.08),transparent);
+    pointer-events:none;
+  }
+  .metric-label{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    color:#8495a7;
+    font-size:11px;
+  }
+  .metric-label .mini{color:#53687a;font-size:9.5px;font-family:var(--mono)}
+  .metric-value{
+    margin-top:8px;
+    font-family:var(--mono);
+    font-size:27px;
+    line-height:1.1;
+    letter-spacing:-.045em;
+    color:#ecf5ff;
+  }
+  .metric-value small{font-size:12px;color:#607386;letter-spacing:0;margin-left:4px}
+  .metric-foot{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:8px;
+    color:#617486;
+    font-size:10.5px;
+  }
+  .metric-foot .good{color:#6cc9a8}
+  .metric-foot .warn{color:var(--warn)}
+
+  .dashboard-grid{
+    display:grid;
+    grid-template-columns:minmax(0,1.48fr) minmax(350px,.92fr);
+    gap:16px;
+    margin-bottom:16px;
+    align-items:stretch;
+  }
+  .card{
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(17,25,34,.94),rgba(13,20,27,.96));
+    box-shadow:0 1px 0 rgba(255,255,255,.022) inset;
+    overflow:hidden;
+  }
+  .card-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    padding:16px 19px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .card-head-left{display:flex;align-items:center;gap:9px;min-width:0}
+  .card-title{display:flex;flex-direction:column;gap:2px}
+  .card-sub{color:#637485;font-size:10.5px;font-weight:400}
+  .card-head .link{
+    border:0;background:transparent;padding:2px;color:#6f9f99;font-size:11px;cursor:pointer;
+  }
+  .card-head .link:hover{color:var(--accent)}
+
+  .status-list{display:flex;flex-direction:column}
+  .status-row{
+    width:100%;
+    border:0;
+    border-bottom:1px solid var(--line-soft);
+    background:transparent;
+    display:grid;
+    grid-template-columns:8px minmax(0,1fr) auto;
+    gap:12px;
+    align-items:center;
+    padding:12px 19px;
+    text-align:left;
+    cursor:pointer;
+    transition:background .14s ease;
+  }
+  .status-row:last-child{border-bottom:0}
+  .status-row:hover{background:rgba(255,255,255,.022)}
+  .status-row .sdot{width:7px;height:7px;border-radius:50%;margin-top:1px}
+  .status-row .sdot.ok{background:var(--up);box-shadow:0 0 9px rgba(47,212,134,.3)}
+  .status-row .sdot.wait{background:#4b6072}
+  .status-row .sdot.warn{background:var(--warn);box-shadow:0 0 9px rgba(239,180,93,.25)}
+  .status-row .sdot.off{background:#3c4b5a}
+  .rule-info{min-width:0}
+  .rule-name{
+    display:flex;align-items:center;gap:7px;
+    color:#dbe6f1;font-size:12.5px;font-weight:530;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .rule-summary{
+    margin-top:2px;
+    color:#657788;
+    font-size:10.5px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .row-side{display:flex;align-items:center;gap:10px}
+  .row-time{font-family:var(--mono);font-size:9.5px;color:#5b6c7c;white-space:nowrap}
+  .chev{width:5px;height:5px;border-top:1px solid #516577;border-right:1px solid #516577;transform:rotate(45deg);margin-left:2px}
+
+  .pill{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    min-height:20px;
+    padding:1px 7px;
+    border-radius:999px;
+    font-size:9.5px;
+    line-height:1.5;
+    white-space:nowrap;
+    border:1px solid transparent;
+  }
+  .pill::before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor;opacity:.85}
+  .pill.no-dot::before{display:none}
+  .pill.success{color:#70d9b1;background:rgba(47,212,134,.075);border-color:rgba(47,212,134,.16)}
+  .pill.wait{color:#8ba0b2;background:rgba(123,146,168,.07);border-color:rgba(123,146,168,.14)}
+  .pill.warn{color:#ecc47f;background:rgba(239,180,93,.075);border-color:rgba(239,180,93,.17)}
+  .pill.danger{color:#ff9ca3;background:rgba(240,97,106,.075);border-color:rgba(240,97,106,.18)}
+  .pill.info{color:#96baff;background:rgba(113,167,255,.075);border-color:rgba(113,167,255,.16)}
+  .pill.off{color:#6f8091;background:rgba(111,128,145,.06);border-color:rgba(111,128,145,.14)}
+
+  .feed{padding:4px 19px 7px}
+  .feed-item{
+    position:relative;
+    display:grid;
+    grid-template-columns:24px minmax(0,1fr) auto;
+    gap:10px;
+    padding:10px 0;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .feed-item:last-child{border-bottom:0}
+  .feed-icon{
+    width:22px;height:22px;border-radius:7px;
+    display:grid;place-items:center;
+    background:rgba(49,215,194,.07);
+    border:1px solid rgba(49,215,194,.14);
+    color:#70ddcf;
+    margin-top:2px;
+  }
+  .feed-icon svg{width:11px;height:11px}
+  .feed-main{min-width:0}
+  .feed-title{font-size:11.5px;color:#cdd9e5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .feed-sub{margin-top:1px;color:#637486;font-size:9.8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .feed-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  .feed-time{font-family:var(--mono);font-size:9px;color:#5d6e7f}
+  .feed-link{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 19px 13px;
+    border-top:1px solid var(--line-soft);
+  }
+  .feed-link button{
+    border:0;background:transparent;color:#679d96;font-size:10.5px;padding:0;cursor:pointer;
+  }
+  .feed-link button:hover{color:var(--accent)}
+
+  /* Chart */
+  .chart-card{margin-bottom:0}
+  .chart-head{padding:14px 18px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;border-bottom:0}
+  .chart-symbol{display:flex;align-items:center;gap:10px}
+  .symbol-orb{
+    width:25px;height:25px;border-radius:50%;
+    display:grid;place-items:center;
+    background:rgba(247,147,26,.11);
+    border:1px solid rgba(247,147,26,.2);
+    color:#f5a13f;
+    font-family:var(--mono);font-size:10px;font-weight:700;
+  }
+  .chart-title{font-size:12.5px;color:#dbe7f2;font-weight:540}
+  .chart-sub{font-size:9.5px;color:#617384;margin-top:1px;font-family:var(--mono)}
+  .chart-price{
+    display:flex;align-items:baseline;gap:7px;
+    margin-left:3px;
+  }
+  .chart-price strong{font-family:var(--mono);font-size:19px;letter-spacing:-.04em;font-weight:550;color:#eef7ff}
+  .chart-price span{font-family:var(--mono);font-size:10px;color:var(--up)}
+  .chart-toolbar{display:flex;align-items:center;gap:8px}
+  .seg{
+    display:inline-flex;
+    align-items:center;
+    gap:1px;
+    padding:2px;
+    border:1px solid #263542;
+    border-radius:7px;
+    background:#0b1219;
+  }
+  .seg button{
+    border:0;background:transparent;color:#718496;
+    padding:4px 8px;border-radius:5px;
+    font-family:var(--mono);font-size:9px;cursor:pointer;
+  }
+  .seg button.active{background:#1b2b33;color:#b8f5ec;box-shadow:0 0 0 1px rgba(49,215,194,.12) inset}
+  .chart-legend{
+    display:flex;align-items:center;gap:14px;
+    padding:0 18px 7px;
+    color:#657789;font-size:9.5px;font-family:var(--mono);
+  }
+  .legend-dot{width:9px;height:2px;display:inline-block;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .chart-wrap{padding:0 8px 2px}
+  .chart-wrap svg{width:100%;height:auto;display:block;overflow:visible}
+  .chart-foot{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px 18px 13px;
+    color:#5f7182;font-size:9.5px;font-family:var(--mono);
+  }
+  .chart-foot .foot-stats{display:flex;gap:17px}
+  .chart-foot b{font-weight:500;color:#91a2b3}
+  .chart-foot .accent{color:#7bcac0}
+
+  /* Rules */
+  .toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding:13px 16px;
+    border:1px solid var(--line);
+    border-bottom:0;
+    border-radius:var(--radius) var(--radius) 0 0;
+    background:rgba(15,23,31,.9);
+  }
+  .toolbar-left,.toolbar-right{display:flex;align-items:center;gap:9px;min-width:0}
+  .filter-tabs{display:flex;align-items:center;gap:2px}
+  .filter-tab{
+    border:0;background:transparent;color:#788a9d;
+    font-size:11px;padding:6px 9px;border-radius:6px;cursor:pointer;
+  }
+  .filter-tab .n{font-family:var(--mono);font-size:9px;color:#536678;margin-left:4px}
+  .filter-tab.active{background:#19252f;color:#d5e0eb}
+  .filter-tab.active .n{color:#759088}
+  .search-box{
+    display:flex;align-items:center;gap:6px;
+    height:30px;padding:0 9px;
+    background:#0a1118;border:1px solid #243342;border-radius:7px;
+    color:#586b7d;
+  }
+  .search-box svg{width:12px;height:12px}
+  .search-box input{
+    width:160px;border:0;outline:0;background:transparent;color:#c9d6e2;font-size:10.5px;
+  }
+  .search-box input::placeholder{color:#526578}
+  .selectish{
+    display:inline-flex;align-items:center;gap:8px;
+    height:30px;padding:0 9px;
+    background:#0a1118;border:1px solid #243342;border-radius:7px;
+    color:#8fa1b2;font-size:10.5px;cursor:pointer;white-space:nowrap;
+  }
+  .selectish:hover{border-color:#34495c}
+  .chev-down{
+    width:0;height:0;
+    border-left:3.5px solid transparent;
+    border-right:3.5px solid transparent;
+    border-top:4px solid #617486;
+    margin-left:1px;
+  }
+  .rules-table{
+    border:1px solid var(--line);
+    border-radius:0 0 var(--radius) var(--radius);
+    background:linear-gradient(180deg,rgba(17,25,34,.95),rgba(13,20,27,.96));
+    overflow:hidden;
+  }
+  .rules-table-head{
+    display:grid;
+    grid-template-columns:44px minmax(0,1fr) 102px 106px 64px 72px;
+    gap:13px;
+    align-items:center;
+    padding:8px 17px;
+    border-bottom:1px solid var(--line-soft);
+    color:#576a7c;font-size:9.5px;letter-spacing:.04em;
+  }
+  .rule-table-row{
+    display:grid;
+    grid-template-columns:44px minmax(0,1fr) 102px 106px 64px 72px;
+    gap:13px;
+    align-items:center;
+    padding:14px 17px;
+    border-bottom:1px solid var(--line-soft);
+    transition:background .14s ease;
+  }
+  .rule-table-row:last-child{border-bottom:0}
+  .rule-table-row:hover{background:rgba(255,255,255,.018)}
+  .switch{
+    width:32px;height:18px;padding:0;border:1px solid #314250;border-radius:999px;
+    background:#121b24;position:relative;cursor:pointer;
+    transition:background .18s ease,border-color .18s ease;
+  }
+  .switch::after{
+    content:"";position:absolute;left:2px;top:2px;
+    width:12px;height:12px;border-radius:50%;
+    background:#64788a;transition:transform .18s ease,background .18s ease;
+  }
+  .switch.on{background:rgba(49,215,194,.18);border-color:rgba(49,215,194,.48)}
+  .switch.on::after{transform:translateX(14px);background:#76f2e1}
+  .switch.off{background:#121b24}
+  .rule-cell-name{background:transparent;border:0;text-align:left;padding:0;cursor:pointer;min-width:0}
+  .rule-cell-name .name{
+    color:#dde8f3;font-size:12px;font-weight:530;
+    display:flex;align-items:center;gap:7px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .rule-cell-name .desc{
+    margin-top:3px;color:#667889;font-size:10px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .symbol-tag{
+    display:inline-flex;align-items:center;
+    height:16px;padding:0 5px;margin-left:4px;
+    border-radius:4px;border:1px solid #2a3a47;
+    color:#8194a5;font-family:var(--mono);font-size:8.5px;font-weight:400;
+    vertical-align:1px;
+  }
+  .last-cell{font-family:var(--mono);font-size:9.5px;color:#6b7d8e;line-height:1.8}
+  .last-cell small{display:block;color:#4f6172;font-size:8.5px}
+  .count-cell{font-family:var(--mono);font-size:11px;color:#9aacbd}
+  .count-cell small{font-size:8.5px;color:#536577}
+  .row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+  .icon-btn{
+    width:26px;height:26px;border:1px solid transparent;border-radius:6px;
+    display:grid;place-items:center;background:transparent;color:#607487;cursor:pointer;
+  }
+  .icon-btn:hover{background:#17222c;border-color:#283847;color:#a6bacb}
+  .icon-btn svg{width:13px;height:13px}
+
+  .template-strip{
+    margin-top:20px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(16,24,33,.8),rgba(12,18,25,.82));
+    padding:15px 17px 17px;
+  }
+  .strip-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+  .strip-head h3{margin:0;font-size:11.5px;font-weight:530;color:#aebecd}
+  .strip-head span{color:#546779;font-size:9.5px}
+  .template-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+  .template-card{
+    text-align:left;padding:11px 12px;
+    border:1px solid #22313e;border-radius:8px;
+    background:#0c141c;cursor:pointer;transition:border-color .15s ease,background .15s ease;
+  }
+  .template-card:hover{border-color:#34525b;background:#0e181f}
+  .template-card .t-title{font-size:10.5px;color:#b7c6d3}
+  .template-card .t-desc{margin-top:4px;color:#5f7284;font-size:9px;font-family:var(--mono);line-height:1.5}
+  .template-card .t-add{display:flex;align-items:center;gap:5px;margin-top:8px;color:#5f9c94;font-size:9px}
+
+  /* Editor */
+  .editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-bottom:14px}
+  .editor-head > div:first-child{min-width:0}
+  .editor-title-line{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .editor-title-line h1{font-size:21px}
+  .back-link{
+    display:inline-flex;align-items:center;gap:5px;
+    color:#6f8295;background:transparent;border:0;padding:0;cursor:pointer;
+    font-size:10.5px;margin-bottom:7px;
+  }
+  .back-link:hover{color:#aebecd}
+  .back-link svg{width:12px;height:12px}
+  .editor-head .actions{display:flex;align-items:center;gap:8px}
+  .unsaved-pill{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:2px 7px;border-radius:999px;
+    border:1px solid #3b3422;background:rgba(239,180,93,.06);
+    color:#c6a76f;font-size:9px;
+  }
+  .unsaved-pill::before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor}
+  .config-card{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(17,25,34,.92),rgba(13,20,27,.95));
+    padding:15px 17px;
+    display:grid;
+    grid-template-columns:1.35fr 1.55fr .9fr .72fr;
+    gap:15px;
+    margin-bottom:14px;
+  }
+  .field label,.field .label{
+    display:block;
+    color:#5e7183;font-size:9.5px;letter-spacing:.02em;margin-bottom:6px;
+  }
+  .text-input,.field-select{
+    display:flex;align-items:center;justify-content:space-between;gap:9px;
+    height:34px;width:100%;padding:0 10px;
+    border:1px solid #263645;border-radius:7px;
+    background:#0a1118;color:#cddae6;font-size:11px;outline:none;
+  }
+  .text-input{font-family:var(--ui)}
+  .text-input:focus{border-color:#3b756f;box-shadow:0 0 0 3px rgba(49,215,194,.06)}
+  .field-select{cursor:pointer}
+  .symbol-control{
+    display:flex;align-items:center;gap:6px;min-height:34px;
+    border:1px solid #263645;border-radius:7px;background:#0a1118;
+    padding:4px 6px;flex-wrap:wrap;
+  }
+  .symbol-chip{
+    display:inline-flex;align-items:center;gap:5px;
+    height:24px;padding:0 6px 0 8px;border-radius:5px;
+    border:1px solid rgba(49,215,194,.18);
+    background:rgba(49,215,194,.065);
+    color:#a4e5dc;font-family:var(--mono);font-size:9px;
+  }
+  .symbol-chip .x{color:#62978f;font-size:12px;line-height:1}
+  .add-symbol{
+    border:0;background:transparent;color:#607b78;font-size:10px;padding:0 4px;cursor:pointer;
+  }
+  .add-symbol:hover{color:var(--accent)}
+  .inline-hint{margin-top:5px;color:#526578;font-size:9px}
+
+  .editor-layout{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 382px;
+    gap:14px;
+    align-items:start;
+  }
+  .builder-card{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(17,25,34,.94),rgba(13,20,27,.96));
+    overflow:hidden;
+  }
+  .builder-head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:14px 17px 12px;border-bottom:1px solid var(--line-soft);
+  }
+  .builder-head-left{display:flex;align-items:center;gap:9px;font-size:11.5px;color:#bccbd8}
+  .logic-select{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:3px 7px;border:1px solid rgba(49,215,194,.2);border-radius:5px;
+    background:rgba(49,215,194,.065);color:#91e7dc;
+    font-family:var(--mono);font-size:9px;cursor:pointer;
+  }
+  .builder-body{padding:16px 17px 17px;position:relative}
+  .builder-note{
+    display:flex;align-items:flex-start;gap:7px;
+    padding:8px 10px;margin-bottom:13px;
+    border:1px solid #1d2e36;border-radius:7px;
+    background:rgba(22,39,44,.32);
+    color:#748e94;font-size:9.5px;line-height:1.65;
+  }
+  .builder-note svg{width:12px;height:12px;flex:0 0 auto;margin-top:2px;color:#6ba39d}
+  .condition-card{
+    position:relative;
+    border:1px solid #243442;border-radius:9px;
+    background:linear-gradient(160deg,#101923,#0d151d);
+    padding:11px 12px 10px;
+  }
+  .condition-card + .condition-card{margin-top:0}
+  .condition-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px}
+  .condition-index{
+    display:flex;align-items:center;gap:7px;
+    color:#708396;font-size:9.5px;font-family:var(--mono);
+  }
+  .condition-index .num{
+    width:16px;height:16px;border-radius:4px;
+    display:grid;place-items:center;
+    background:#17232d;border:1px solid #2a3b49;color:#8196a8;
+    font-size:8.5px;
+  }
+  .condition-top-right{display:flex;align-items:center;gap:8px}
+  .live-value{font-family:var(--mono);font-size:9px;color:#6e8d88}
+  .live-value b{font-weight:500;color:#86d6c8}
+  .condition-actions{display:flex;align-items:center;gap:2px}
+  .tiny-icon{
+    width:22px;height:22px;border:0;border-radius:5px;background:transparent;
+    display:grid;place-items:center;color:#5e7284;cursor:pointer;
+  }
+  .tiny-icon:hover{background:#1a2732;color:#a3b7c8}
+  .tiny-icon svg{width:12px;height:12px}
+  .builder-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+  .sel{
+    display:inline-flex;align-items:center;justify-content:space-between;gap:7px;
+    height:30px;padding:0 8px;
+    border:1px solid #293b4a;border-radius:6px;
+    background:#0b131b;color:#b7c7d5;
+    font-size:10px;cursor:pointer;white-space:nowrap;
+  }
+  .sel:hover{border-color:#3b5264}
+  .sel.strong{color:#c9d9e7}
+  .sel .chev-down{border-top-color:#5e7283}
+  .sel-oper{
+    width:34px;justify-content:center;padding:0;
+    color:#92e9dd;border-color:rgba(49,215,194,.2);
+    background:rgba(49,215,194,.055);font-family:var(--mono);font-size:12px;
+  }
+  .builder-sep{color:#4c6072;font-size:9px;padding:0 1px}
+  .num-input{
+    display:inline-flex;align-items:center;
+    height:30px;min-width:66px;padding:0 8px;
+    border:1px solid #293b4a;border-radius:6px;background:#0b131b;
+    color:#d1e0ec;font-family:var(--mono);font-size:11px;
+  }
+  .condition-meta{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    margin-top:8px;padding-top:8px;border-top:1px dashed #1e2b37;
+    color:#5f7284;font-size:9px;
+  }
+  .condition-meta .params{font-family:var(--mono);color:#667b8d}
+  .condition-meta .now{font-family:var(--mono);color:#6d958e}
+  .connector{
+    display:flex;align-items:center;gap:9px;height:31px;
+    margin-left:18px;color:#5c7383;font-size:9px;
+  }
+  .connector::before{
+    content:"";width:1px;height:100%;background:linear-gradient(#263746,#263746);
+    margin-left:0;
+  }
+  .connector span{padding:1px 6px;border:1px solid #263846;border-radius:4px;background:#0b131a;font-family:var(--mono)}
+  .builder-actions{display:flex;gap:7px;margin-top:12px}
+  .add-btn{
+    display:inline-flex;align-items:center;gap:6px;
+    height:30px;padding:0 9px;
+    border:1px dashed #2b4050;border-radius:6px;
+    background:transparent;color:#75918f;font-size:10px;cursor:pointer;
+  }
+  .add-btn:hover{border-color:#4d7771;color:#9ddfd5;background:rgba(49,215,194,.035)}
+  .add-btn svg{width:11px;height:11px}
+  .summary-box{
+    margin-top:13px;
+    border:1px solid #20313a;border-radius:8px;
+    background:linear-gradient(150deg,rgba(20,35,38,.6),rgba(13,21,27,.72));
+    padding:10px 11px;
+  }
+  .summary-title{display:flex;align-items:center;gap:6px;color:#71968f;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
+  .summary-title svg{width:11px;height:11px}
+  .summary-text{margin-top:5px;color:#8ba0ab;font-size:10px;line-height:1.8}
+  .summary-text b{font-weight:520;color:#bdd3db}
+  .builder-foot{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:11px 17px;border-top:1px solid var(--line-soft);
+    color:#536678;font-size:9px;
+  }
+  .builder-foot .key{font-family:var(--mono);color:#697d8d}
+
+  .side-stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .side-card{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(17,25,34,.94),rgba(13,20,27,.97));
+    overflow:hidden;
+  }
+  .side-head{
+    padding:13px 15px 11px;border-bottom:1px solid var(--line-soft);
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .side-head-title{font-size:11.5px;color:#c0cfdb;font-weight:530}
+  .side-head-sub{font-family:var(--mono);color:#596d7e;font-size:8.5px;margin-top:2px}
+  .status-hero{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 15px 11px;
+    background:linear-gradient(90deg,rgba(32,47,59,.12),transparent);
+  }
+  .status-hero .big{padding:3px 8px;font-size:10px}
+  .truth-list{padding:2px 15px 9px}
+  .truth-row{
+    display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:8px;
+    align-items:start;padding:9px 0;border-top:1px solid var(--line-soft);
+  }
+  .truth-mark{
+    width:15px;height:15px;border-radius:50%;display:grid;place-items:center;margin-top:1px;
+    font-size:8px;font-weight:700;
+  }
+  .truth-mark.ok{background:rgba(47,212,134,.12);color:#65d5aa;border:1px solid rgba(47,212,134,.2)}
+  .truth-mark.no{background:rgba(111,128,145,.08);color:#758798;border:1px solid rgba(111,128,145,.16)}
+  .truth-mark.err{background:rgba(239,180,93,.1);color:#e5b872;border:1px solid rgba(239,180,93,.18)}
+  .truth-main{min-width:0}
+  .truth-title{font-size:10px;color:#b8c8d5;line-height:1.55}
+  .truth-desc{margin-top:1px;color:#617486;font-family:var(--mono);font-size:8.5px;line-height:1.7}
+  .truth-value{font-family:var(--mono);font-size:9px;color:#749d96;text-align:right;line-height:1.7;white-space:nowrap}
+  .truth-value.miss{color:#d3a765}
+  .logic-row{
+    margin:0 15px 12px;padding:8px 9px;
+    border:1px solid #23343f;border-radius:6px;background:#0b1219;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .logic-row .lbl{color:#64798a;font-size:9px;font-family:var(--mono)}
+  .logic-row .val{font-family:var(--mono);font-size:9px;color:#8799a9}
+  .logic-row .op{color:#5b8e89;background:rgba(49,215,194,.07);padding:1px 5px;border-radius:4px;font-size:8.5px}
+  .side-note{padding:0 15px 12px;color:#4f6374;font-size:8.5px;line-height:1.6}
+
+  /* Discord preview */
+  .dc-head-actions{display:flex;align-items:center;gap:8px}
+  .discord-mini{
+    width:15px;height:15px;border-radius:4px;display:grid;place-items:center;
+    background:#5865f2;color:#fff;
+  }
+  .discord-mini svg{width:9px;height:9px}
+  .dc-wrap{padding:12px 13px 13px}
+  .discord-message{
+    position:relative;display:flex;overflow:hidden;
+    border-radius:7px;border:1px solid #1f2c39;
+    background:#101820;
+  }
+  .dc-accent{width:3px;background:#31d7c2;flex:0 0 auto}
+  .dc-content{padding:10px 11px 10px 10px;min-width:0;flex:1}
+  .dc-app{display:flex;align-items:center;gap:6px;color:#a9bacb;font-size:9px;font-weight:550}
+  .dc-app .badge{
+    padding:0 3px;border-radius:2px;background:#5865f2;color:#fff;
+    font-size:7px;line-height:11px;letter-spacing:.02em;
+  }
+  .dc-app time{margin-left:auto;color:#5e6f80;font-family:var(--mono);font-size:7.5px;font-weight:400}
+  .dc-title{margin-top:7px;color:#e0edf8;font-size:11px;font-weight:560;line-height:1.4}
+  .dc-sub{margin-top:1px;color:#7e91a2;font-size:8.5px}
+  .dc-fields{
+    display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;
+    margin-top:9px;padding-top:8px;border-top:1px solid #1b2935;
+  }
+  .dc-field .k{color:#607385;font-size:7.5px;letter-spacing:.04em}
+  .dc-field .v{margin-top:1px;color:#bccbd8;font-family:var(--mono);font-size:8.5px}
+  .dc-field .v.up{color:#66d8ae}
+  .dc-rule-box{
+    margin-top:9px;padding:7px 8px;border:1px solid #1e2d3a;border-radius:4px;
+    background:#0c131b;
+  }
+  .dc-rule-head{color:#66798b;font-size:7.5px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+  .dc-cond{color:#93a5b6;font-family:var(--mono);font-size:7.8px;line-height:1.8;display:flex;gap:4px}
+  .dc-cond .ok{color:#5ed0a6}
+  .dc-cond b{color:#c2d4df;font-weight:500}
+  .dc-footer{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    margin-top:8px;padding-top:7px;border-top:1px solid #1b2935;
+    color:#516474;font-size:7px;
+  }
+  .dc-footer .id{font-family:var(--mono);color:#607484}
+  .dc-actions{display:flex;align-items:center;justify-content:space-between;padding:9px 13px 12px;border-top:1px solid var(--line-soft);color:#526577;font-size:8.5px}
+  .dc-actions button{border:0;background:transparent;color:#6ba39c;font-size:9px;padding:0;cursor:pointer}
+  .dc-actions button:hover{color:var(--accent)}
+
+  .subtle-warning{
+    display:flex;align-items:flex-start;gap:7px;
+    margin-top:12px;color:#6f8178;font-size:9px;line-height:1.65;
+  }
+  .subtle-warning svg{width:11px;height:11px;flex:0 0 auto;margin-top:2px;color:#8b8d62}
+
+  /* Events */
+  .event-summary{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;
+  }
+  .mini-stat{
+    display:flex;align-items:center;justify-content:space-between;
+    border:1px solid var(--line);border-radius:9px;
+    background:rgba(15,23,31,.75);padding:12px 14px;
+  }
+  .mini-stat-label{color:#708294;font-size:10px}
+  .mini-stat-value{font-family:var(--mono);font-size:18px;color:#dbe7f2;letter-spacing:-.03em}
+  .mini-stat-value small{font-size:9px;color:#677b8c;letter-spacing:0;margin-left:3px}
+  .events-card{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(180deg,rgba(17,25,34,.95),rgba(13,20,27,.96));overflow:hidden}
+  .events-toolbar{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 16px;border-bottom:1px solid var(--line-soft);
+  }
+  .events-table-head,.event-row{
+    display:grid;
+    grid-template-columns:128px minmax(0,1.2fr) minmax(120px,.85fr) 98px 104px 26px;
+    gap:12px;align-items:center;
+  }
+  .events-table-head{
+    padding:8px 16px;border-bottom:1px solid var(--line-soft);
+    color:#576a7b;font-size:9px;letter-spacing:.04em;
+  }
+  .event-row{
+    width:100%;border:0;border-bottom:1px solid var(--line-soft);
+    background:transparent;padding:12px 16px;text-align:left;cursor:pointer;
+    transition:background .14s ease;
+  }
+  .event-row:last-child{border-bottom:0}
+  .event-row:hover{background:rgba(255,255,255,.022)}
+  .event-time{font-family:var(--mono);font-size:9.5px;color:#8496a7;line-height:1.8}
+  .event-time small{display:block;color:#4f6374;font-size:8px}
+  .event-rule{color:#c4d2df;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .event-rule small{display:block;color:#5d6f81;font-family:var(--mono);font-size:8px;margin-top:2px}
+  .event-symbol{font-family:var(--mono);font-size:9.5px;color:#899cac}
+  .event-symbol small{display:block;color:#536678;font-size:8px}
+  .event-price{font-family:var(--mono);font-size:10px;color:#c3d0db;text-align:right}
+  .event-status{display:flex;justify-content:flex-start}
+  .event-arrow{color:#465969;display:grid;place-items:center}
+  .event-arrow svg{width:12px;height:12px}
+  .event-row.failed .event-price{color:#eec2a1}
+  .empty-filter{
+    padding:38px 20px;text-align:center;color:#627587;font-size:11px;display:none;
+  }
+
+  /* Settings */
+  .settings-grid{display:grid;grid-template-columns:1.06fr .94fr;gap:15px;align-items:start}
+  .settings-col{display:flex;flex-direction:column;gap:15px}
+  .settings-card{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(17,25,34,.94),rgba(13,20,27,.96));
+    overflow:hidden;
+  }
+  .settings-card-head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:15px;
+    padding:15px 17px 13px;border-bottom:1px solid var(--line-soft);
+  }
+  .settings-title{display:flex;align-items:center;gap:7px;color:#c3d2de;font-size:11.5px;font-weight:530}
+  .settings-title svg{width:14px;height:14px;color:#76938e}
+  .settings-sub{margin-top:3px;color:#5d7182;font-size:9px;line-height:1.6}
+  .settings-body{padding:14px 17px 16px}
+  .label-line{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .label-line label{color:#657989;font-size:9.5px}
+  .label-line .tag{font-family:var(--mono);font-size:8px;color:#5c8d85}
+  .masked-input{
+    display:flex;align-items:center;gap:8px;
+    height:34px;padding:0 10px;border:1px solid #263645;border-radius:7px;
+    background:#0a1118;color:#94a8b8;font-family:var(--mono);font-size:9.5px;
+  }
+  .masked-input .lock{color:#567f78}
+  .masked-input svg{width:12px;height:12px;flex:0 0 auto}
+  .masked-input span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .inline-actions{display:flex;gap:7px;margin-top:9px}
+  .test-note{
+    display:flex;align-items:flex-start;gap:7px;margin-top:11px;padding:8px 9px;
+    border:1px solid #1f2f38;border-radius:6px;background:#0b1219;
+    color:#617687;font-size:8.8px;line-height:1.7;
+  }
+  .test-note svg{width:11px;height:11px;flex:0 0 auto;margin-top:2px;color:#8ca981}
+  .status-line{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:8px 0;border-bottom:1px solid #192630;font-size:9.5px;
+  }
+  .status-line:last-child{border-bottom:0;padding-bottom:0}
+  .status-line .k{display:flex;align-items:center;gap:7px;color:#748798}
+  .status-line .v{font-family:var(--mono);font-size:9px;color:#8da0b1;text-align:right}
+  .status-line .v.good{color:#6ac9a4}
+  .status-line .v a{color:#5a9991}
+  .proxy-field{display:flex;gap:7px}
+  .proxy-field .text-input{flex:1}
+  .endpoint-box{
+    margin-top:10px;padding:9px 10px;border:1px solid #20303b;border-radius:6px;
+    background:#0a1118;
+  }
+  .endpoint-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:3px 0;font-family:var(--mono);font-size:8.5px}
+  .endpoint-row .k{color:#596d7e}
+  .endpoint-row .v{color:#7f998f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .data-numbers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:2px}
+  .data-number{padding:9px 10px;border:1px solid #1f303b;border-radius:7px;background:#0b1219}
+  .data-number .k{color:#5b7081;font-size:8.5px}
+  .data-number .v{margin-top:3px;font-family:var(--mono);font-size:14px;color:#b8c9d6}
+  .danger-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line-soft)}
+  .danger-row .k{font-size:9.5px;color:#8b9aa8}
+  .danger-row .d{font-size:8.5px;color:#5a6c7b;margin-top:2px}
+  .about-line{display:flex;align-items:center;justify-content:space-between;padding:6px 0;color:#667a8b;font-size:9px}
+  .about-line b{font-family:var(--mono);color:#93a5b5;font-weight:400}
+
+  .page-foot{
+    display:flex;align-items:center;justify-content:space-between;gap:20px;
+    margin-top:22px;padding-top:12px;border-top:1px solid #121c25;
+    color:#3f5364;font-size:8.5px;font-family:var(--mono);
+  }
+
+  /* Drawer */
+  .drawer-overlay{
+    position:fixed;inset:0;z-index:80;
+    background:rgba(2,6,10,.62);backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+  }
+  .drawer-overlay.open{opacity:1;pointer-events:auto}
+  .drawer{
+    position:fixed;top:0;right:0;bottom:0;z-index:81;
+    width:min(480px,100vw);
+    background:linear-gradient(180deg,#0d141c,#0a1016);
+    border-left:1px solid #233443;
+    box-shadow:-30px 0 80px rgba(0,0,0,.35);
+    transform:translateX(100%);
+    transition:transform .24s cubic-bezier(.2,.8,.2,1);
+    display:flex;flex-direction:column;
+  }
+  .drawer.open{transform:none}
+  .drawer-head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:15px;
+    padding:20px 20px 16px;border-bottom:1px solid var(--line-soft);
+  }
+  .drawer-kicker{color:#5c7182;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--mono)}
+  .drawer-title{margin-top:5px;color:#e2edf7;font-size:17px;letter-spacing:-.02em;font-weight:600}
+  .drawer-sub{margin-top:3px;color:#65798a;font-family:var(--mono);font-size:9px}
+  .drawer-scroll{overflow-y:auto;flex:1;padding:18px 20px 24px}
+  .detail-section{margin-bottom:18px}
+  .detail-section h4{margin:0 0 9px;color:#687d8e;font-size:9px;letter-spacing:.12em;text-transform:uppercase;font-weight:500}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .detail-cell{padding:9px 10px;border:1px solid #20303c;border-radius:7px;background:#0c141c}
+  .detail-cell .k{color:#586c7e;font-size:8.5px}
+  .detail-cell .v{margin-top:2px;color:#b8c8d5;font-family:var(--mono);font-size:9.5px;line-height:1.65}
+  .detail-cond{
+    display:grid;grid-template-columns:17px minmax(0,1fr) auto;gap:8px;
+    padding:9px 0;border-bottom:1px solid #182530;
+  }
+  .detail-cond:last-child{border-bottom:0}
+  .detail-cond .mark{width:15px;height:15px;border-radius:50%;display:grid;place-items:center;background:rgba(47,212,134,.12);color:#68d3aa;font-size:8px;border:1px solid rgba(47,212,134,.18);margin-top:1px}
+  .detail-cond .t{color:#a9bac8;font-size:9.5px}
+  .detail-cond .d{color:#607385;font-family:var(--mono);font-size:8.5px;margin-top:1px}
+  .detail-cond .v{color:#8cbaa9;font-family:var(--mono);font-size:8.5px;text-align:right;white-space:nowrap}
+  .delivery-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #182530;font-family:var(--mono);font-size:8.5px}
+  .delivery-row:last-child{border-bottom:0}
+  .delivery-row .left{display:flex;align-items:center;gap:7px;color:#8093a4}
+  .delivery-row .right{color:#566a7b}
+  .drawer-foot{padding:13px 20px;border-top:1px solid var(--line-soft);display:flex;gap:8px;justify-content:flex-end;background:#0b1219}
+
+  /* Toast */
+  .toast{
+    position:fixed;right:24px;bottom:24px;z-index:100;
+    display:flex;align-items:center;gap:9px;
+    max-width:380px;padding:11px 13px;
+    border:1px solid #2d4a45;border-radius:9px;
+    background:rgba(15,27,29,.97);
+    color:#c4ded7;font-size:10.5px;
+    box-shadow:0 18px 50px rgba(0,0,0,.45);
+    transform:translateY(12px);opacity:0;pointer-events:none;
+    transition:opacity .18s ease,transform .18s ease;
+  }
+  .toast.show{opacity:1;transform:none}
+  .toast .ticon{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:rgba(49,215,194,.12);color:var(--accent);font-size:10px}
+
+  @media (max-width:1360px){
+    .content{padding-left:24px;padding-right:24px}
+    .topbar{padding:0 24px}
+    .dashboard-grid{grid-template-columns:minmax(0,1.38fr) minmax(330px,.92fr)}
+    .editor-layout{grid-template-columns:minmax(0,1fr) 355px}
+    .config-card{grid-template-columns:1.2fr 1.4fr .9fr .7fr}
+  }
+  @media (max-width:1220px){
+    .app{grid-template-columns:76px minmax(0,1fr)}
+    .brand{padding:21px 0;justify-content:center}
+    .brand>div:last-child{display:none}
+    .nav-group{padding:8px 12px}
+    .nav-label{display:none}
+    .nav-item{justify-content:center;padding:11px 0}
+    .nav-item span,.nav-item .nav-count{display:none}
+    .side-status{display:none}
+    .side-foot{justify-content:center;padding:0 6px 16px}
+    .side-foot span:first-child{display:none}
+    .cards-4{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .editor-layout{grid-template-columns:1fr}
+    .side-stack{display:grid;grid-template-columns:1fr 1fr;align-items:start}
+    .config-card{grid-template-columns:1fr 1fr;row-gap:12px}
+    .settings-grid{grid-template-columns:1fr}
+    .template-grid{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:980px){
+    body{min-width:900px}
+    .dashboard-grid{grid-template-columns:1fr}
+    .side-stack{grid-template-columns:1fr}
+    .settings-grid{grid-template-columns:1fr}
+    .search-box input{width:120px}
+  }
+</style>
+</head>
+<body>
+<div class="preview-banner">
+  <span class="tag">DESIGN PREVIEW</span>
+  静态 UI 设计预览 · 演示数据 · 未连接 OKX，也不会发送 Discord 消息
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.5" opacity=".45"/>
+          <circle cx="12" cy="12" r="5.1" stroke="currentColor" stroke-width="1.3" opacity=".7"/>
+          <circle cx="12" cy="12" r="1.8" fill="currentColor"/>
+          <path d="M12 12 18.6 5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">行情哨兵</div>
+        <div class="brand-sub">MARKET SENTINEL</div>
+      </div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">工作台</div>
+      <nav aria-label="主导航">
+        <button class="nav-item active" data-nav="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/>
+          </svg>
+          <span>总览</span>
+        </button>
+        <button class="nav-item" data-nav="rules">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h8M16 18h4"/>
+            <circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="14" cy="18" r="2"/>
+          </svg>
+          <span>规则</span><span class="nav-count">4</span>
+        </button>
+        <button class="nav-item" data-nav="events">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 9a6 6 0 0 1 12 0c0 7 2.2 7 2.2 7H3.8S6 16 6 9Z"/>
+            <path d="M9.5 20a2.6 2.6 0 0 0 5 0"/>
+          </svg>
+          <span>事件</span><span class="nav-count">12</span>
+        </button>
+        <button class="nav-item" data-nav="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3.1"/>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 5a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.53.73.93.93.3.2.66.3 1.02.3H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5.77Z"/>
+          </svg>
+          <span>设置</span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+
+    <div class="side-status">
+      <div class="side-status-head"><span class="green-dot"></span> OKX 公共行情已连接</div>
+      <div class="side-status-meta"><span>WS · BUSINESS</span><span>38 ms</span></div>
+    </div>
+    <div class="side-foot">
+      <span>仅提醒，不自动下单</span>
+      <span class="version">v1.0 · PREVIEW</span>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb">工作台 <span class="sep">/</span> <b id="crumbCurrent">总览</b></div>
+      <div class="top-right">
+        <div class="market-state">
+          <span class="green-dot"></span> 行情正常
+          <span class="latency">38ms</span>
+        </div>
+        <div class="discord-state"><span class="green-dot"></span> Discord 已配置</div>
+        <span class="clock" id="clock">11-09 14:58:12 CST</span>
+        <div class="avatar" title="本地工作区">LOCAL</div>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- ══════════════════════════════ DASHBOARD ══════════════════════════════ -->
+      <section class="page active" id="page-dashboard">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow"><span class="green-dot"></span> 工作台</div>
+            <h1>总览</h1>
+            <p class="page-sub">4 条规则正在监控 · 最近同步于 14:58:02 CST</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary" data-go="events">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+              查看事件
+            </button>
+            <button class="btn btn-primary" data-go="editor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              新建规则
+            </button>
+          </div>
+        </div>
+
+        <div class="cards-4">
+          <div class="metric">
+            <div class="metric-label"><span>监控中</span><span class="mini">ACTIVE</span></div>
+            <div class="metric-value">3<small>/ 4 条规则</small></div>
+            <div class="metric-foot"><span class="green-dot"></span> 1 条组合规则已暂停</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label"><span>今日触发</span><span class="mini">TODAY</span></div>
+            <div class="metric-value">7<small>次</small></div>
+            <div class="metric-foot"><span class="good">+2</span> 较昨日同时段</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label"><span>送达率</span><span class="mini">DISCORD</span></div>
+            <div class="metric-value">86<small>%</small></div>
+            <div class="metric-foot"><span class="warn-dot"></span> 6 / 7 已送达 · 1 条待重试</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label"><span>行情延迟</span><span class="mini">WS · 5m</span></div>
+            <div class="metric-value">38<small>ms</small></div>
+            <div class="metric-foot"><span class="green-dot"></span> 最近一根 14:55 已收盘</div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="card">
+            <div class="card-head">
+              <div class="card-head-left">
+                <div class="card-title">
+                  <h2>规则运行状态</h2>
+                  <div class="card-sub">每一条规则独立判断；组合条件按所有周期的最新收盘 K 线对齐</div>
+                </div>
+              </div>
+              <button class="link" data-go="rules">全部规则 →</button>
+            </div>
+            <div class="status-list">
+              <button class="status-row" data-go="editor">
+                <span class="sdot ok"></span>
+                <div class="rule-info">
+                  <div class="rule-name">15m KDJ J 高位 <span class="symbol-tag">BTC-USDT-SWAP</span></div>
+                  <div class="rule-summary">15m · KDJ(9,3,3) · J ≥ 90 · 当前 92.4</div>
+                </div>
+                <div class="row-side">
+                  <span class="pill success">已满足</span>
+                  <span class="row-time">14:45</span>
+                  <span class="chev"></span>
+                </div>
+              </button>
+              <button class="status-row" data-go="rules">
+                <span class="sdot wait"></span>
+                <div class="rule-info">
+                  <div class="rule-name">5m 中轨转弱 <span class="symbol-tag">BTC-USDT-SWAP</span></div>
+                  <div class="rule-summary">5m · 布林带(20,2) · 中轨斜率 &lt; 0 · 当前 +0.006%/根</div>
+                </div>
+                <div class="row-side">
+                  <span class="pill wait">监控中</span>
+                  <span class="row-time">13:20</span>
+                  <span class="chev"></span>
+                </div>
+              </button>
+              <button class="status-row" data-go="rules">
+                <span class="sdot wait"></span>
+                <div class="rule-info">
+                  <div class="rule-name">5m 下轨触及 <span class="symbol-tag">ETH-USDT-SWAP</span></div>
+                  <div class="rule-summary">5m · 最低价 ≤ 布林带下轨 · 条件未满足</div>
+                </div>
+                <div class="row-side">
+                  <span class="pill wait">监控中</span>
+                  <span class="row-time">11:10</span>
+                  <span class="chev"></span>
+                </div>
+              </button>
+              <button class="status-row" data-go="rules">
+                <span class="sdot off"></span>
+                <div class="rule-info">
+                  <div class="rule-name">趋势回踩组合 <span class="symbol-tag">BTC-USDT-SWAP</span></div>
+                  <div class="rule-summary">15m 中轨斜率 &gt; 0 且 5m 最低价 ≤ 下轨 · 已暂停</div>
+                </div>
+                <div class="row-side">
+                  <span class="pill off">已暂停</span>
+                  <span class="row-time">—</span>
+                  <span class="chev"></span>
+                </div>
+              </button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div class="card-head-left">
+                <div class="card-title">
+                  <h2>最近触发</h2>
+                  <div class="card-sub">所有条件快照与发送结果均可回看</div>
+                </div>
+              </div>
+              <button class="link" data-go="events">全部 →</button>
+            </div>
+            <div class="feed">
+              <div class="feed-item">
+                <div class="feed-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </div>
+                <div class="feed-main">
+                  <div class="feed-title">下轨触及 · BTC-USDT-SWAP</div>
+                  <div class="feed-sub">5m · 最低价 74,188.0 ≤ 下轨 74,220.0</div>
+                </div>
+                <div class="feed-right">
+                  <span class="pill success no-dot">已送达</span>
+                  <span class="feed-time">14:45</span>
+                </div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </div>
+                <div class="feed-main">
+                  <div class="feed-title">中轨转弱 · ETH-USDT-SWAP</div>
+                  <div class="feed-sub">5m · 中轨斜率 −0.014%/根 &lt; 0</div>
+                </div>
+                <div class="feed-right">
+                  <span class="pill success no-dot">已送达</span>
+                  <span class="feed-time">14:30</span>
+                </div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </div>
+                <div class="feed-main">
+                  <div class="feed-title">KDJ J 高位 · BTC-USDT-SWAP</div>
+                  <div class="feed-sub">15m · J = 91.8 ≥ 90</div>
+                </div>
+                <div class="feed-right">
+                  <span class="pill success no-dot">已送达</span>
+                  <span class="feed-time">13:45</span>
+                </div>
+              </div>
+              <div class="feed-item">
+                <div class="feed-icon" style="background:rgba(239,180,93,.07);border-color:rgba(239,180,93,.15);color:#e5b872">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                </div>
+                <div class="feed-main">
+                  <div class="feed-title">下轨触及 · BTC-USDT-SWAP</div>
+                  <div class="feed-sub">5m · 最低价 74,102.5 ≤ 下轨 74,088.0</div>
+                </div>
+                <div class="feed-right">
+                  <span class="pill wait no-dot">等待重试</span>
+                  <span class="feed-time">12:15</span>
+                </div>
+              </div>
+            </div>
+            <div class="feed-link">
+              <button data-go="events">查看完整事件时间线 →</button>
+              <span class="faint" style="font-size:9px;font-family:var(--mono)">7 TODAY</span>
+            </div>
+          </section>
+        </div>
+
+        <section class="card chart-card">
+          <div class="chart-head">
+            <div class="chart-symbol">
+              <div class="symbol-orb">₿</div>
+              <div>
+                <div class="chart-title">BTC-USDT-SWAP</div>
+                <div class="chart-sub">OKX · 永续 · 5m</div>
+              </div>
+              <div class="chart-price">
+                <strong id="chartLastPrice">74,529.2</strong>
+                <span id="chartChange">+0.42%</span>
+              </div>
+            </div>
+            <div class="chart-toolbar">
+              <div class="seg" aria-label="图表周期">
+                <button>1m</button><button class="active">5m</button><button>15m</button><button>1H</button><button>4H</button>
+              </div>
+              <button class="icon-btn" title="图表设置">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="2" fill="#0f161f"/><circle cx="16" cy="12" r="2" fill="#0f161f"/><circle cx="10" cy="17" r="2" fill="#0f161f"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="chart-legend">
+            <span><span class="legend-dot" style="background:#71a7ff"></span>BOLL(20, 2) 上轨 / 中轨 / 下轨</span>
+            <span><span class="legend-dot" style="background:#31d7c2"></span>收盘价</span>
+            <span><span class="legend-dot" style="background:#efb45d"></span>规则触发</span>
+            <span style="margin-left:auto;color:#526677">已收盘 K 线 · 不包含未确认数据</span>
+          </div>
+          <div class="chart-wrap" id="marketChart" aria-label="BTC-USDT-SWAP 5分钟 K线示意"></div>
+          <div class="chart-foot">
+            <div class="foot-stats">
+              <span>O <b id="chartOpen">74,106.8</b></span>
+              <span>H <b id="chartHigh">74,308.7</b></span>
+              <span>L <b id="chartLow">74,020.1</b></span>
+              <span>C <b id="chartClose">74,529.2</b></span>
+              <span>VOL <b>18.42M</b></span>
+            </div>
+            <span class="accent" id="chartBands">BOLL 上轨 74,461 · 中轨 74,208 · 下轨 73,955</span>
+          </div>
+        </section>
+        <div class="page-foot"><span>行情哨兵 · 只做提醒与记录，不自动下单</span><span>OKX PUBLIC DATA · DEMO</span></div>
+      </section>
+
+      <!-- ══════════════════════════════ RULES ══════════════════════════════ -->
+      <section class="page" id="page-rules">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">工作台</div>
+            <h1>规则</h1>
+            <p class="page-sub">4 条规则 · 3 条已启用 · 收盘确认模式为默认</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" data-go="editor">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              新建规则
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <div class="filter-tabs" data-rule-tabs>
+              <button class="filter-tab active">全部 <span class="n">4</span></button>
+              <button class="filter-tab">已启用 <span class="n">3</span></button>
+              <button class="filter-tab">已暂停 <span class="n">1</span></button>
+            </div>
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+              <input type="text" placeholder="搜索规则…" aria-label="搜索规则">
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <button class="selectish">全部品种 <span class="chev-down"></span></button>
+            <button class="selectish">最近更新 <span class="chev-down"></span></button>
+          </div>
+        </div>
+        <div class="rules-table">
+          <div class="rules-table-head"><span>开关</span><span>规则 / 条件摘要</span><span>状态</span><span>上次触发</span><span>24h 次数</span><span style="text-align:right">操作</span></div>
+
+          <div class="rule-table-row">
+            <button class="switch on" role="switch" aria-checked="true" aria-label="启用 15m KDJ J 高位"></button>
+            <button class="rule-cell-name" data-go="editor">
+              <div class="name">15m KDJ J 高位 <span class="symbol-tag">BTC</span><span class="symbol-tag">15m</span></div>
+              <div class="desc">KDJ(9,3,3) · J ≥ 90 · 当前 92.4 · 上次触发 14:45</div>
+            </button>
+            <div><span class="pill success">已满足</span></div>
+            <div class="last-cell">11-09 14:45:02<small>收盘确认</small></div>
+            <div class="count-cell">3<small> 次</small></div>
+            <div class="row-actions">
+              <button class="icon-btn" title="更多操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-table-row">
+            <button class="switch on" role="switch" aria-checked="true" aria-label="启用 5m 中轨转弱"></button>
+            <button class="rule-cell-name" data-go="editor">
+              <div class="name">5m 中轨转弱 <span class="symbol-tag">BTC</span><span class="symbol-tag">5m</span></div>
+              <div class="desc">布林带(20,2) 中轨斜率 &lt; 0 · 当前 +0.006%/根 · 上次触发 13:20</div>
+            </button>
+            <div><span class="pill wait">监控中</span></div>
+            <div class="last-cell">11-09 13:20:01<small>收盘确认</small></div>
+            <div class="count-cell">1<small> 次</small></div>
+            <div class="row-actions">
+              <button class="icon-btn" title="更多操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-table-row">
+            <button class="switch on" role="switch" aria-checked="true" aria-label="启用 5m 下轨触及"></button>
+            <button class="rule-cell-name" data-go="editor">
+              <div class="name">5m 下轨触及 <span class="symbol-tag">ETH</span><span class="symbol-tag">5m</span></div>
+              <div class="desc">最低价 ≤ 布林带下轨(20,2) · 当前最低 3,142.5 / 下轨 3,128.0 · 上次触发 11:10</div>
+            </button>
+            <div><span class="pill wait">监控中</span></div>
+            <div class="last-cell">11-09 11:10:03<small>收盘确认</small></div>
+            <div class="count-cell">2<small> 次</small></div>
+            <div class="row-actions">
+              <button class="icon-btn" title="更多操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+            </div>
+          </div>
+
+          <div class="rule-table-row">
+            <button class="switch" role="switch" aria-checked="false" aria-label="启用 趋势回踩组合"></button>
+            <button class="rule-cell-name" data-go="editor">
+              <div class="name">趋势回踩组合 <span class="symbol-tag">BTC</span><span class="symbol-tag">5m + 15m</span></div>
+              <div class="desc">15m 中轨斜率 &gt; 0，且 5m 最低价 ≤ 下轨 · 2 个条件 · 已暂停</div>
+            </button>
+            <div><span class="pill off">已暂停</span></div>
+            <div class="last-cell">—<small>尚未触发</small></div>
+            <div class="count-cell">0<small> 次</small></div>
+            <div class="row-actions">
+              <button class="icon-btn" title="更多操作"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="template-strip">
+          <div class="strip-head"><h3>从模板创建</h3><span>示例规则不会自动启用</span></div>
+          <div class="template-grid">
+            <button class="template-card" data-go="editor">
+              <div class="t-title">J 值高位提醒</div>
+              <div class="t-desc">15m · KDJ J ≥ 90</div>
+              <div class="t-add">使用模板 <span>→</span></div>
+            </button>
+            <button class="template-card" data-go="editor">
+              <div class="t-title">中轨转弱</div>
+              <div class="t-desc">5m · 中轨斜率 &lt; 0</div>
+              <div class="t-add">使用模板 <span>→</span></div>
+            </button>
+            <button class="template-card" data-go="editor">
+              <div class="t-title">下轨触及</div>
+              <div class="t-desc">5m · 最低价 ≤ 下轨</div>
+              <div class="t-add">使用模板 <span>→</span></div>
+            </button>
+            <button class="template-card" data-go="editor">
+              <div class="t-title">趋势回踩组合</div>
+              <div class="t-desc">15m 斜率 &gt; 0 AND 5m 触及下轨</div>
+              <div class="t-add">使用模板 <span>→</span></div>
+            </button>
+          </div>
+        </div>
+        <div class="page-foot"><span>规则修改后会重置当前满足状态</span><span>4 RULES · 1 PAUSED</span></div>
+      </section>
+
+      <!-- ══════════════════════════════ EDITOR ══════════════════════════════ -->
+      <section class="page" id="page-editor">
+        <div class="editor-head">
+          <div>
+            <button class="back-link" data-go="rules">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+              返回规则
+            </button>
+            <div class="editor-title-line">
+              <h1 id="editorTitle">趋势回踩组合</h1>
+              <span class="unsaved-pill">未保存的改动</span>
+            </div>
+            <p class="page-sub">15m 与 5m 组合 · 只在两个周期数据都新鲜时判断</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary" id="replayBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v5h5"/><path d="M4.8 14a7.5 7.5 0 1 0 1.6-6.5L4 10"/></svg>
+              试跑
+            </button>
+            <button class="btn btn-primary" id="saveRuleBtn">保存并启用</button>
+          </div>
+        </div>
+
+        <div class="config-card">
+          <div class="field">
+            <label for="ruleName">规则名称</label>
+            <input class="text-input" id="ruleName" value="趋势回踩组合">
+          </div>
+          <div class="field">
+            <span class="label">适用品种</span>
+            <div class="symbol-control">
+              <span class="symbol-chip">BTC-USDT-SWAP <span class="x">×</span></span>
+              <button class="add-symbol">+ 添加品种</button>
+            </div>
+            <div class="inline-hint">每个品种独立判断、独立通知</div>
+          </div>
+          <div class="field">
+            <span class="label">触发时点</span>
+            <button class="field-select">收盘确认 <span class="chev-down"></span></button>
+          </div>
+          <div class="field">
+            <span class="label">冷却时间</span>
+            <button class="field-select">5 分钟 <span class="chev-down"></span></button>
+          </div>
+        </div>
+
+        <div class="editor-layout">
+          <div class="builder-card">
+            <div class="builder-head">
+              <div class="builder-head-left">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7db2aa" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+                条件逻辑
+                <button class="logic-select">全部满足 <span class="mono">AND</span> <span class="chev-down"></span></button>
+              </div>
+              <button class="btn btn-ghost btn-sm">添加条件组</button>
+            </div>
+            <div class="builder-body">
+              <div class="builder-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                <span>所有条件都读取各自周期<strong>最近一根已收盘 K 线</strong>。整条规则从“不满足”变为“满足”时通知一次；持续满足不重复。多周期同时收盘时只评估一次。</span>
+              </div>
+
+              <div class="condition-card">
+                <div class="condition-top">
+                  <div class="condition-index"><span class="num">1</span> 条件</div>
+                  <div class="condition-top-right">
+                    <span class="live-value">当前 <b>+0.031%</b> · 14:45 收盘</span>
+                    <div class="condition-actions">
+                      <button class="tiny-icon" title="指标参数"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 5a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.53.73.93.93.3.2.66.3 1.02.3H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5.77Z"/></svg></button>
+                      <button class="tiny-icon" title="删除条件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="builder-row">
+                  <button class="sel"><span>15m</span><span class="chev-down"></span></button>
+                  <button class="sel strong"><span>布林带</span><span class="chev-down"></span></button>
+                  <span class="builder-sep">·</span>
+                  <button class="sel strong"><span>中轨斜率</span><span class="chev-down"></span></button>
+                  <button class="sel sel-oper">&gt;</button>
+                  <div class="num-input">0</div>
+                </div>
+                <div class="condition-meta">
+                  <span class="params">BB(20, 2) · SMA · 总体标准差 · 斜率窗口 1 根</span>
+                  <span class="now">条件成立</span>
+                </div>
+              </div>
+
+              <div class="connector"><span>且</span></div>
+
+              <div class="condition-card">
+                <div class="condition-top">
+                  <div class="condition-index"><span class="num">2</span> 条件</div>
+                  <div class="condition-top-right">
+                    <span class="live-value">当前最低 <b>74,188.0</b> · 14:55 收盘</span>
+                    <div class="condition-actions">
+                      <button class="tiny-icon" title="指标参数"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 5a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.53.73.93.93.3.2.66.3 1.02.3H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5.77Z"/></svg></button>
+                      <button class="tiny-icon" title="删除条件"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="builder-row">
+                  <button class="sel"><span>5m</span><span class="chev-down"></span></button>
+                  <button class="sel strong"><span>价格</span><span class="chev-down"></span></button>
+                  <span class="builder-sep">·</span>
+                  <button class="sel strong"><span>最低价</span><span class="chev-down"></span></button>
+                  <button class="sel sel-oper">≤</button>
+                  <button class="sel strong"><span>指标值</span><span class="chev-down"></span></button>
+                  <span class="builder-sep">·</span>
+                  <button class="sel strong"><span>布林带下轨</span><span class="chev-down"></span></button>
+                </div>
+                <div class="condition-meta">
+                  <span class="params">BB(20, 2) · 下轨 74,220.0</span>
+                  <span class="now" style="color:#c7aa72">条件未满足</span>
+                </div>
+              </div>
+
+              <div class="builder-actions">
+                <button class="add-btn" id="addConditionBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  添加条件
+                </button>
+                <button class="add-btn" id="addGroupBtn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  添加条件组
+                </button>
+              </div>
+
+              <div class="summary-box">
+                <div class="summary-title">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+                  规则摘要
+                </div>
+                <div class="summary-text">当 <b>15m 布林带中轨斜率 &gt; 0</b>，并且 <b>5m 最低价 ≤ 布林带下轨</b> 时；两个周期都使用最近已收盘 K 线，条件由不满足变为满足后触发一次；冷却 <b>5 分钟</b>。</div>
+              </div>
+            </div>
+            <div class="builder-foot">
+              <span>判断由服务端完成，界面显示与实际触发使用同一份快照</span>
+              <span class="key">⌘ + S 保存</span>
+            </div>
+          </div>
+
+          <div class="side-stack">
+            <section class="side-card">
+              <div class="side-head">
+                <div>
+                  <div class="side-head-title">当前判断</div>
+                  <div class="side-head-sub">14:55:02 CST · 5m 收盘</div>
+                </div>
+                <span class="pill wait">未满足</span>
+              </div>
+              <div class="status-hero">
+                <div>
+                  <div class="status-hero-title" style="font-size:10.5px;color:#a8bac8">整条规则当前状态</div>
+                  <div style="font-size:8.5px;color:#5c7081;margin-top:2px">条件尚未全部满足</div>
+                </div>
+                <span class="pill info big">数据完整 · 已就绪</span>
+              </div>
+              <div class="truth-list">
+                <div class="truth-row">
+                  <span class="truth-mark ok">✓</span>
+                  <div class="truth-main">
+                    <div class="truth-title">15m 中轨斜率 &gt; 0</div>
+                    <div class="truth-desc">BB(20,2) · K线 14:30–14:45</div>
+                  </div>
+                  <div class="truth-value">+0.031%<br><span style="color:#5d7b76">满足</span></div>
+                </div>
+                <div class="truth-row">
+                  <span class="truth-mark no">✕</span>
+                  <div class="truth-main">
+                    <div class="truth-title">5m 最低价 ≤ 下轨</div>
+                    <div class="truth-desc">74,188.0 vs 74,220.0 · 14:50–14:55</div>
+                  </div>
+                  <div class="truth-value miss">−32.0<br><span style="color:#6a6250">未满足</span></div>
+                </div>
+              </div>
+              <div class="logic-row">
+                <span class="lbl">整体表达式</span>
+                <span class="val">true <span class="op">AND</span> false</span>
+              </div>
+              <div class="side-note">若任一周期数据过期或存在缺口，整条规则将暂停判断，不会使用旧值发送信号。</div>
+            </section>
+
+            <section class="side-card">
+              <div class="side-head">
+                <div>
+                  <div class="side-head-title">Discord 消息预览</div>
+                  <div class="side-head-sub">触发后发送到默认 Webhook</div>
+                </div>
+                <div class="dc-head-actions">
+                  <div class="discord-mini" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 5.1A16 16 0 0 0 15 4l-.5 1a14.7 14.7 0 0 0-5 0L9 4a16 16 0 0 0-3.9 1.1C2.5 8.9 1.8 12.7 2.2 16.4A16.4 16.4 0 0 0 7.2 19l1-1.4a10 10 0 0 1-1.6-.8l.4-.3a11.7 11.7 0 0 0 10 0l.4.3c-.5.3-1 .6-1.6.8l1 1.4a16.4 16.4 0 0 0 5-2.6c.5-4.3-.6-8-2.9-11.3ZM8.6 14.3c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="dc-wrap">
+                <div class="discord-message">
+                  <div class="dc-accent"></div>
+                  <div class="dc-content">
+                    <div class="dc-app"><span class="badge">APP</span> 行情哨兵 <time>今天 14:50</time></div>
+                    <div class="dc-title">📡 触发 · BTC-USDT-SWAP</div>
+                    <div class="dc-sub">5m / 15m · 趋势回踩组合</div>
+                    <div class="dc-fields">
+                      <div class="dc-field"><div class="k">触发时间</div><div class="v">11-09 14:50:03 CST</div></div>
+                      <div class="dc-field"><div class="k">触发价</div><div class="v up">74,188.0</div></div>
+                      <div class="dc-field"><div class="k">触发模式</div><div class="v">收盘确认</div></div>
+                      <div class="dc-field"><div class="k">参考周期</div><div class="v">5m / 15m</div></div>
+                    </div>
+                    <div class="dc-rule-box">
+                      <div class="dc-rule-head">条件快照</div>
+                      <div class="dc-cond"><span class="ok">✓</span> 15m 中轨斜率 <b>+0.031%/根</b> &gt; 0</div>
+                      <div class="dc-cond"><span class="ok">✓</span> 5m 最低价 <b>74,188.0</b> ≤ <b>74,220.0</b></div>
+                    </div>
+                    <div class="dc-footer"><span>事件 ID · evt_01J9F2K8Q7</span><span>仅提醒</span></div>
+                  </div>
+                </div>
+                <div class="dc-actions">
+                  <span>测试通知不会写入正式事件流</span>
+                  <button id="previewTestBtn">发送测试 →</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+        <div class="subtle-warning">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          这是静态设计预览。真实系统中，点击“保存并启用”会重置规则当前满足状态并重新建立基线；不会补发旧信号。
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════ EVENTS ══════════════════════════════ -->
+      <section class="page" id="page-events">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">工作台</div>
+            <h1>事件</h1>
+            <p class="page-sub">所有触发与 Discord 投递记录 · 默认保留 90 天</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+              导出 CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="event-summary">
+          <div class="mini-stat"><span class="mini-stat-label">今日触发</span><span class="mini-stat-value">7<small>次</small></span></div>
+          <div class="mini-stat"><span class="mini-stat-label">已成功送达</span><span class="mini-stat-value" style="color:#6fdab2">6<small> / 7</small></span></div>
+          <div class="mini-stat"><span class="mini-stat-label">待重试 / 失败</span><span class="mini-stat-value" style="color:#e6bc78">1<small>条</small></span></div>
+        </div>
+
+        <div class="events-card">
+          <div class="events-toolbar">
+            <div class="filter-tabs" data-event-tabs>
+              <button class="filter-tab active" data-event-filter="all">全部 <span class="n">12</span></button>
+              <button class="filter-tab" data-event-filter="sent">已送达 <span class="n">10</span></button>
+              <button class="filter-tab" data-event-filter="failed">发送失败 <span class="n">1</span></button>
+              <button class="filter-tab" data-event-filter="pending">待发送 <span class="n">1</span></button>
+            </div>
+            <div class="toolbar-right">
+              <button class="selectish">全部规则 <span class="chev-down"></span></button>
+              <button class="selectish">最近 7 天 <span class="chev-down"></span></button>
+            </div>
+          </div>
+          <div class="events-table-head"><span>触发时间</span><span>规则</span><span>品种 / 周期</span><span>触发价</span><span>投递状态</span><span></span></div>
+
+          <button class="event-row" data-status="sent" data-time="11-09 14:45:02" data-rule="5m 下轨触及" data-symbol="BTC-USDT-SWAP · 5m" data-price="74,299.0" data-state="sent" data-eid="evt_01J9F2M4WK">
+            <span class="event-time">11-09 14:45:02<small>Asia/Shanghai</small></span>
+            <span class="event-rule">5m 下轨触及<small>最低价 ≤ 布林带下轨</small></span>
+            <span class="event-symbol">BTC-USDT-SWAP<small>5m · 收盘确认</small></span>
+            <span class="event-price">74,299.0</span>
+            <span class="event-status"><span class="pill success">已送达</span></span>
+            <span class="event-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+
+          <button class="event-row" data-status="sent" data-time="11-09 14:30:01" data-rule="趋势回踩组合" data-symbol="ETH-USDT-SWAP · 5m + 15m" data-price="3,142.50" data-state="sent" data-eid="evt_01J9F2A8XP">
+            <span class="event-time">11-09 14:30:01<small>Asia/Shanghai</small></span>
+            <span class="event-rule">趋势回踩组合<small>15m 斜率 &gt; 0 且 5m 触及下轨</small></span>
+            <span class="event-symbol">ETH-USDT-SWAP<small>5m + 15m · 收盘确认</small></span>
+            <span class="event-price">3,142.50</span>
+            <span class="event-status"><span class="pill success">已送达</span></span>
+            <span class="event-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+
+          <button class="event-row failed" data-status="failed" data-time="11-09 12:15:04" data-rule="5m 下轨触及" data-symbol="BTC-USDT-SWAP · 5m" data-price="74,102.5" data-state="failed" data-eid="evt_01J9F0C2TR">
+            <span class="event-time">11-09 12:15:04<small>Asia/Shanghai</small></span>
+            <span class="event-rule">5m 下轨触及<small>最低价 ≤ 布林带下轨</small></span>
+            <span class="event-symbol">BTC-USDT-SWAP<small>5m · 收盘确认</small></span>
+            <span class="event-price">74,102.5</span>
+            <span class="event-status"><span class="pill danger">发送失败</span></span>
+            <span class="event-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+
+          <button class="event-row" data-status="sent" data-time="11-09 11:10:03" data-rule="5m 下轨触及" data-symbol="ETH-USDT-SWAP · 5m" data-price="3,128.00" data-state="sent" data-eid="evt_01J9EZA3QQ">
+            <span class="event-time">11-09 11:10:03<small>Asia/Shanghai</small></span>
+            <span class="event-rule">5m 下轨触及<small>最低价 ≤ 布林带下轨</small></span>
+            <span class="event-symbol">ETH-USDT-SWAP<small>5m · 收盘确认</small></span>
+            <span class="event-price">3,128.00</span>
+            <span class="event-status"><span class="pill success">已送达</span></span>
+            <span class="event-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+
+          <button class="event-row" data-status="sent" data-time="11-09 09:30:01" data-rule="15m KDJ J 高位" data-symbol="BTC-USDT-SWAP · 15m" data-price="74,520.8" data-state="sent" data-eid="evt_01J9E0B7HD">
+            <span class="event-time">11-09 09:30:01<small>Asia/Shanghai</small></span>
+            <span class="event-rule">15m KDJ J 高位<small>J 从 87.6 升至 91.8</small></span>
+            <span class="event-symbol">BTC-USDT-SWAP<small>15m · 收盘确认</small></span>
+            <span class="event-price">74,520.8</span>
+            <span class="event-status"><span class="pill success">已送达</span></span>
+            <span class="event-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+
+          <button class="event-row" data-status="pending" data-time="11-09 08:45:00" data-rule="中轨转弱" data-symbol="BTC-USDT-SWAP · 5m" data-price="74,602.1" data-state="pending" data-eid="evt_01J9DZ8R5K">
+            <span class="event-time">11-09 08:45:00<small>Asia/Shanghai</small></span>
+            <span class="event-rule">5m 中轨转弱<small>中轨斜率 &lt; 0</small></span>
+            <span class="event-symbol">BTC-USDT-SWAP<small>5m · 收盘确认</small></span>
+            <span class="event-price">74,602.1</span>
+            <span class="event-status"><span class="pill info">待发送</span></span>
+            <span class="event-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></span>
+          </button>
+          <div class="empty-filter" id="eventEmpty">没有符合筛选条件的事件</div>
+        </div>
+        <div class="page-foot"><span>事件快照不会被后续规则修改覆盖</span><span>RETENTION 90D · AUTO REFRESH ON</span></div>
+      </section>
+
+      <!-- ══════════════════════════════ SETTINGS ══════════════════════════════ -->
+      <section class="page" id="page-settings">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">工作台</div>
+            <h1>设置</h1>
+            <p class="page-sub">通知、网络与本地数据 · 所有配置只保存在这台电脑</p>
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary" id="diagnosticsBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-5 3 3 5-7"/></svg>
+              诊断信息
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-grid">
+          <div class="settings-col">
+            <section class="settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <div class="settings-title">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 5.1A16 16 0 0 0 15 4l-.5 1a14.7 14.7 0 0 0-5 0L9 4a16 16 0 0 0-3.9 1.1C2.5 8.9 1.8 12.7 2.2 16.4A16.4 16.4 0 0 0 7.2 19l1-1.4a10 10 0 0 1-1.6-.8l.4-.3a11.7 11.7 0 0 0 10 0l.4.3c-.5.3-1 .6-1.6.8l1 1.4a16.4 16.4 0 0 0 5-2.6c.5-4.3-.6-8-2.9-11.3ZM8.6 14.3c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Zm6.8 0c-1 0-1.8-.9-1.8-2s.8-2 1.8-2 1.8.9 1.8 2-.8 2-1.8 2Z"/></svg>
+                    Discord Webhook
+                  </div>
+                  <div class="settings-sub">触发消息会以 Embed 形式发送到这个频道；URL 保存后不再明文显示。</div>
+                </div>
+                <span class="pill success">已配置</span>
+              </div>
+              <div class="settings-body">
+                <div class="label-line"><label>Webhook URL</label><span class="tag">SECRET · MASKED</span></div>
+                <div class="masked-input">
+                  <span class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+                  <span>https://discord.com/api/webhooks/••••••••••••/••••••••••••••••••••abcd</span>
+                </div>
+                <div class="inline-actions">
+                  <button class="btn btn-secondary btn-sm" id="testDiscordBtn">发送测试消息</button>
+                  <button class="btn btn-ghost btn-sm">更换 Webhook</button>
+                </div>
+                <div class="test-note">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m5 12 4 4L19 6"/></svg>
+                  最近测试成功 · 14:42:11 CST · 延迟 312 ms。测试消息不计入事件页，也不会触发任何规则。
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <div class="settings-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+                    网络与数据源
+                  </div>
+                  <div class="settings-sub">OKX 公共行情，不需要 API Key。WebSocket 已迁移到 443 端口。</div>
+                </div>
+                <span class="pill success">连接正常</span>
+              </div>
+              <div class="settings-body">
+                <div class="label-line"><label>代理地址（可选）</label><span class="tag">REST + WS</span></div>
+                <div class="proxy-field">
+                  <input class="text-input" value="http://127.0.0.1:7890">
+                  <button class="btn btn-secondary btn-sm" style="height:34px" id="testProxyBtn">测试</button>
+                </div>
+                <div class="endpoint-box">
+                  <div class="endpoint-row"><span class="k">REST</span><span class="v">https://openapi.okx.com</span></div>
+                  <div class="endpoint-row"><span class="k">WS</span><span class="v">wss://ws.okx.com/ws/v5/business</span></div>
+                  <div class="endpoint-row"><span class="k">代理状态</span><span class="v" style="color:#69cba4">已启用 · 234 ms</span></div>
+                </div>
+                <div class="status-line" style="margin-top:9px"><span class="k"><span class="green-dot"></span> 行情连接</span><span class="v good">WebSocket · 38 ms</span></div>
+                <div class="status-line"><span class="k"><span class="green-dot"></span> 最近收盘 K 线</span><span class="v">14:55:00 CST · 延迟 1.2s</span></div>
+                <div class="status-line"><span class="k"><span class="warn-dot"></span> 本机 / 服务器时差</span><span class="v">+0.38 秒</span></div>
+                <div class="test-note">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                  OKX 已停止 8443 公网 WebSocket；配置中不再保留端口号，使用 443 默认端口。REST 域名可切换，但默认只允许 OKX 官方域名。
+                </div>
+                <div class="inline-actions">
+                  <button class="btn btn-secondary btn-sm" id="testOkxBtn">测试直连</button>
+                  <button class="btn btn-ghost btn-sm">恢复默认端点</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="settings-col">
+            <section class="settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <div class="settings-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><ellipse cx="12" cy="5.5" rx="7" ry="3"/><path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/><path d="M5 11.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg>
+                    数据与保留
+                  </div>
+                  <div class="settings-sub">触发快照、投递结果和 K 线缓存都保存在本地 SQLite。</div>
+                </div>
+              </div>
+              <div class="settings-body">
+                <div class="data-numbers">
+                  <div class="data-number"><div class="k">事件</div><div class="v">128</div></div>
+                  <div class="data-number"><div class="k">数据库</div><div class="v">18.4 MB</div></div>
+                  <div class="data-number"><div class="k">保留</div><div class="v">90 天</div></div>
+                </div>
+                <div class="status-line" style="margin-top:10px"><span class="k">事件保留</span><span class="v">90 天 <span style="color:#526b7d">编辑</span></span></div>
+                <div class="status-line"><span class="k">1m K 线缓存</span><span class="v">7 天</span></div>
+                <div class="status-line"><span class="k">本地数据目录</span><span class="v">~/…/market-sentinel/data</span></div>
+                <div class="danger-row">
+                  <div><div class="k">清空历史事件</div><div class="d">只删除事件记录，不删除规则和配置</div></div>
+                  <button class="btn btn-danger btn-sm">清空…</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <div class="settings-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+                    监控默认值
+                  </div>
+                  <div class="settings-sub">只影响新建规则；既有规则保留自己的设置。</div>
+                </div>
+              </div>
+              <div class="settings-body">
+                <div class="status-line"><span class="k">默认触发时点</span><span class="v">收盘确认</span></div>
+                <div class="status-line"><span class="k">默认冷却</span><span class="v">5 分钟</span></div>
+                <div class="status-line"><span class="k">时区</span><span class="v">Asia/Shanghai</span></div>
+                <div class="status-line"><span class="k">价格/K线来源</span><span class="v">OKX 公共行情</span></div>
+                <div class="status-line"><span class="k">1D 日界</span><span class="v">使用交易所时间戳</span></div>
+              </div>
+            </section>
+
+            <section class="settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <div class="settings-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-.8.6-1.5 1-1.5 2M12 16h.01"/></svg>
+                    关于
+                  </div>
+                </div>
+              </div>
+              <div class="settings-body">
+                <div class="about-line"><span>应用版本</span><b>v1.0 preview</b></div>
+                <div class="about-line"><span>数据源</span><b>OKX Public API</b></div>
+                <div class="about-line"><span>通知</span><b>Discord Webhook</b></div>
+                <div class="about-line"><span>运行位置</span><b>127.0.0.1:8787</b></div>
+                <div class="test-note" style="margin-top:11px">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 8v5M12 17h.01"/><path d="M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                  本工具只做行情提醒与记录，不自动下单，不构成投资建议。
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+        <div class="page-foot"><span>Webhook 与代理凭据永不出现在诊断导出中</span><span>LOCAL ONLY · LOOPBACK</span></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- Event drawer -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<aside class="drawer" id="eventDrawer" aria-label="事件详情" aria-hidden="true">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-kicker">EVENT DETAIL</div>
+      <div class="drawer-title" id="drawerTitle">5m 下轨触及</div>
+      <div class="drawer-sub" id="drawerSub">BTC-USDT-SWAP · 5m · 11-09 14:45:02 CST</div>
+    </div>
+    <button class="icon-btn" id="closeDrawer" aria-label="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="drawer-scroll">
+    <div class="detail-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+        <h4 style="margin:0">触发快照</h4>
+        <span class="pill success" id="drawerStatus">已送达</span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-cell"><div class="k">触发价</div><div class="v" id="drawerPrice">74,299.0</div></div>
+        <div class="detail-cell"><div class="k">触发模式</div><div class="v">收盘确认</div></div>
+        <div class="detail-cell"><div class="k">数据时间</div><div class="v">14:45:00 CST</div></div>
+        <div class="detail-cell"><div class="k">规则版本</div><div class="v">v4 · indicators-v1</div></div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>条件快照</h4>
+      <div class="detail-cond">
+        <span class="mark">✓</span>
+        <div><div class="t">5m 最低价 ≤ 布林带下轨</div><div class="d">low 74,188.0 ≤ lower 74,220.0 · 14:45</div></div>
+        <div class="v">true</div>
+      </div>
+      <div class="detail-cond">
+        <span class="mark">✓</span>
+        <div><div class="t">5m 收盘价与下轨距离</div><div class="d">close 74,299.0 − lower 74,220.0 = +79.0</div></div>
+        <div class="v">+0.106%</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h4>投递记录</h4>
+      <div class="delivery-row"><span class="left"><span class="green-dot"></span> 第 1 次 · HTTP 200</span><span class="right">14:45:03 · 318ms</span></div>
+      <div class="delivery-row"><span class="left" style="color:#5d7081">Discord message id</span><span class="right" id="drawerMsgId">1289031847293</span></div>
+      <div class="delivery-row"><span class="left" style="color:#5d7081">事件 ID</span><span class="right" id="drawerEid">evt_01J9F2M4WK</span></div>
+    </div>
+    <div class="detail-section">
+      <h4>相关规则</h4>
+      <div class="detail-cell" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div><div class="v" style="font-family:var(--ui);font-size:10px" id="drawerRule">5m 下轨触及</div><div class="k" style="margin-top:2px">15m 中轨斜率 &lt; 0</div></div>
+        <button class="btn btn-secondary btn-sm" data-go="editor">打开规则</button>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-secondary btn-sm">在图表中查看</button>
+    <button class="btn btn-primary btn-sm" id="retryBtn">重新发送</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span class="ticon">✓</span>
+  <span id="toastText">演示提示</span>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const pageNames = {
+    dashboard: "总览",
+    rules: "规则",
+    editor: "编辑规则",
+    events: "事件",
+    settings: "设置"
+  };
+  const navAlias = { editor: "rules" };
+
+  function showPage(name, updateHistory = true) {
+    if (!pageNames[name]) name = "dashboard";
+    document.querySelectorAll(".page").forEach(page => {
+      page.classList.toggle("active", page.id === "page-" + name);
+    });
+    document.querySelectorAll(".nav-item").forEach(item => {
+      item.classList.toggle("active", item.dataset.nav === (navAlias[name] || name));
+    });
+    document.getElementById("crumbCurrent").textContent = pageNames[name];
+    document.title = "行情哨兵 · " + pageNames[name] + " · UI 预览";
+    if (name === "editor") {
+      const isNew = new URLSearchParams(location.search).get("new") === "1";
+      document.getElementById("editorTitle").textContent = isNew ? "新建规则" : "趋势回踩组合";
+    }
+    if (updateHistory) {
+      const url = new URL(location.href);
+      url.searchParams.set("screen", name);
+      history.replaceState(null, "", url);
+    }
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  document.querySelectorAll("[data-nav]").forEach(btn => {
+    btn.addEventListener("click", () => showPage(btn.dataset.nav));
+  });
+  document.querySelectorAll("[data-go]").forEach(btn => {
+    btn.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      showPage(btn.dataset.go);
+      closeDrawer();
+    });
+  });
+
+  // Query-string deep links / screenshot targets
+  const initial = new URLSearchParams(location.search).get("screen") || "dashboard";
+  showPage(initial, false);
+
+  // Static preview clock: use a fixed snapshot time so the demo stays internally consistent.
+  const clock = document.getElementById("clock");
+  clock.textContent = "11-09 14:58:12 CST";
+
+  // Toasts
+  let toastTimer = null;
+  function toast(message) {
+    const el = document.getElementById("toast");
+    document.getElementById("toastText").textContent = message;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+  }
+
+  // Rule switches
+  document.querySelectorAll(".switch").forEach(sw => {
+    sw.addEventListener("click", () => {
+      const on = !sw.classList.contains("on");
+      sw.classList.toggle("on", on);
+      sw.setAttribute("aria-checked", String(on));
+      toast(on ? "演示：规则已启用（真实应用会先建立基线）" : "演示：规则已暂停，不再判断");
+    });
+  });
+
+  // Rule filter tabs (visual filter)
+  document.querySelectorAll("[data-rule-tabs] .filter-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("[data-rule-tabs] .filter-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      toast("演示：规则列表已按「" + tab.textContent.trim().replace(/\s+/g, " ") + "」筛选");
+    });
+  });
+
+  // Event filter tabs + actual filtering
+  const eventRows = Array.from(document.querySelectorAll(".event-row"));
+  const emptyFilter = document.getElementById("eventEmpty");
+  function applyEventFilter(filter) {
+    let visible = 0;
+    eventRows.forEach(row => {
+      const show = filter === "all" || row.dataset.status === filter;
+      row.style.display = show ? "" : "none";
+      if (show) visible++;
+    });
+    emptyFilter.style.display = visible ? "none" : "block";
+  }
+  document.querySelectorAll("[data-event-filter]").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("[data-event-filter]").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      applyEventFilter(tab.dataset.eventFilter);
+    });
+  });
+
+  // Drawer
+  const overlay = document.getElementById("drawerOverlay");
+  const drawer = document.getElementById("eventDrawer");
+  const statusMap = {
+    sent: ["已送达", "success"],
+    failed: ["发送失败", "danger"],
+    pending: ["待发送", "info"]
+  };
+  function openDrawer(row) {
+    document.getElementById("drawerTitle").textContent = row.dataset.rule;
+    document.getElementById("drawerSub").textContent =
+      row.dataset.symbol + " · " + row.dataset.time + " CST";
+    document.getElementById("drawerPrice").textContent = row.dataset.price;
+    document.getElementById("drawerEid").textContent = row.dataset.eid;
+    document.getElementById("drawerRule").textContent = row.dataset.rule;
+    const [label, cls] = statusMap[row.dataset.state] || statusMap.sent;
+    const statusEl = document.getElementById("drawerStatus");
+    statusEl.textContent = label;
+    statusEl.className = "pill " + cls;
+    document.getElementById("retryBtn").style.display = row.dataset.state === "failed" ? "" : "none";
+    overlay.classList.add("open");
+    drawer.classList.add("open");
+    drawer.setAttribute("aria-hidden", "false");
+  }
+  function closeDrawer() {
+    overlay.classList.remove("open");
+    drawer.classList.remove("open");
+    drawer.setAttribute("aria-hidden", "true");
+  }
+  eventRows.forEach(row => row.addEventListener("click", () => openDrawer(row)));
+  document.getElementById("closeDrawer").addEventListener("click", closeDrawer);
+  overlay.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeDrawer();
+  });
+  document.getElementById("retryBtn").addEventListener("click", () => {
+    toast("演示：已加入重试队列（真实应用会调用 Discord Webhook）");
+  });
+
+  // Demo actions
+  document.getElementById("saveRuleBtn")?.addEventListener("click", () => {
+    toast("演示：保存并启用。真实应用会校验条件、重置基线并开始监控。");
+  });
+  document.getElementById("replayBtn")?.addEventListener("click", () => {
+    toast("演示：打开最近 7 天信号试跑；不会发送 Discord 消息。");
+  });
+  document.getElementById("addConditionBtn")?.addEventListener("click", () => {
+    toast("演示：此处打开条件选择器（选择周期、指标、比较符和阈值）。");
+  });
+  document.getElementById("addGroupBtn")?.addEventListener("click", () => {
+    toast("演示：此处插入一个 AND/OR 子条件组。");
+  });
+  document.getElementById("previewTestBtn")?.addEventListener("click", () => {
+    toast("演示：测试通知只会发送预览消息，不写入事件流。");
+  });
+  document.getElementById("testDiscordBtn")?.addEventListener("click", () => {
+    toast("演示：Discord 测试成功（HTTP 200 · 312ms）。");
+  });
+  document.getElementById("testProxyBtn")?.addEventListener("click", () => {
+    toast("演示：代理可用，OKX 公共时间接口 200 · 234ms。");
+  });
+  document.getElementById("testOkxBtn")?.addEventListener("click", () => {
+    toast("演示：OKX 直连成功，服务器时差 +0.38s。");
+  });
+  document.getElementById("diagnosticsBtn")?.addEventListener("click", () => {
+    toast("演示：真实应用会打开日志、订阅健康度和发送队列诊断。");
+  });
+  document.querySelectorAll(".selectish, .field-select, .sel, .logic-select").forEach(el => {
+    el.addEventListener("click", event => {
+      event.stopPropagation();
+      toast("演示控件：真实应用中这里打开下拉选择器。");
+    });
+  });
+  document.querySelectorAll(".template-card").forEach(card => {
+    card.addEventListener("click", () => toast("演示：已用模板预填规则，保存前不会启用。"));
+  });
+
+  // Chart -----------------------------------------------------------------
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function buildChart() {
+    const mount = document.getElementById("marketChart");
+    if (!mount) return;
+    const rnd = mulberry32(20261109);
+    const raw = [];
+    let lastClose = 73810;
+    for (let i = 0; i < 122; i++) {
+      const trend = i < 28 ? 11 : i < 62 ? 5 : i < 88 ? -9 : 7;
+      const impulse = rnd() < .09 ? (rnd() - .5) * 210 : 0;
+      const delta = (rnd() - .5) * 64 + trend + impulse;
+      const open = lastClose;
+      const close = Math.max(73000, open + delta);
+      const wickUp = 13 + rnd() * 46;
+      const wickDown = 13 + rnd() * 46;
+      const high = Math.max(open, close) + wickUp;
+      const low = Math.min(open, close) - wickDown;
+      const volume = 220 + rnd() * 750 + Math.abs(delta) * 4.5 + (impulse ? 550 : 0);
+      raw.push({ open, close, high, low, volume });
+      lastClose = close;
+    }
+    const bars = raw.slice(-96);
+    const n = bars.length;
+
+    // Bollinger bands (20, 2), population standard deviation.
+    const mid = [], upper = [], lower = [];
+    for (let i = 0; i < bars.length; i++) {
+      if (i < 19) { mid.push(null); upper.push(null); lower.push(null); continue; }
+      let mean = 0;
+      for (let j = i - 19; j <= i; j++) mean += bars[j].close;
+      mean /= 20;
+      let variance = 0;
+      for (let j = i - 19; j <= i; j++) variance += (bars[j].close - mean) ** 2;
+      const sd = Math.sqrt(variance / 20);
+      mid.push(mean); upper.push(mean + 2 * sd); lower.push(mean - 2 * sd);
+    }
+
+    const W = 1120, H = 330;
+    const left = 12, right = 76, top = 17, priceBottom = 238;
+    const volTop = 257, volBottom = 309;
+    const triggerIndex = bars.length - 3;
+    // Make the illustrated trigger candle actually wick through the lower band.
+    bars[triggerIndex].low = Math.min(bars[triggerIndex].low, lower[triggerIndex] - 4);
+    const plotWidth = W - left - right;
+    const step = plotWidth / n;
+    const allLows = bars.map(b => b.low).concat(lower.filter(Number.isFinite));
+    const allHighs = bars.map(b => b.high).concat(upper.filter(Number.isFinite));
+    const yMin = Math.min(...allLows) - 28;
+    const yMax = Math.max(...allHighs) + 28;
+    const y = price => priceBottom - ((price - yMin) / (yMax - yMin)) * (priceBottom - top);
+    const x = i => left + step * i + step / 2;
+    const maxVol = Math.max(...bars.map(b => b.volume));
+
+    const gridLines = 5;
+    let grid = "";
+    for (let i = 0; i < gridLines; i++) {
+      const py = top + (i / (gridLines - 1)) * (priceBottom - top);
+      const val = yMax - (i / (gridLines - 1)) * (yMax - yMin);
+      grid += `<line x1="${left}" y1="${py.toFixed(1)}" x2="${W - right + 4}" y2="${py.toFixed(1)}" stroke="#1a2732" stroke-width="1" stroke-dasharray="2 5"/>`;
+      grid += `<text x="${W - right + 10}" y="${(py + 3).toFixed(1)}" fill="#485d6f" font-family="ui-monospace,monospace" font-size="8.5">${Math.round(val).toLocaleString("en-US")}</text>`;
+    }
+
+    // Bollinger fill between upper and lower
+    const bollPts = [];
+    for (let i = 19; i < n; i++) bollPts.push([x(i), y(upper[i]), y(lower[i])]);
+    let fillD = "";
+    if (bollPts.length) {
+      fillD = "M " + bollPts.map(p => `${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(" L ");
+      fillD += " L " + bollPts.slice().reverse().map(p => `${p[0].toFixed(2)} ${p[2].toFixed(2)}`).join(" L ") + " Z";
+    }
+    const linePath = idx => "M " + bars.map((b, i) => idx[i] == null ? null : `${x(i).toFixed(2)} ${y(idx[i]).toFixed(2)}`).filter(Boolean).join(" L ");
+
+    // Candles
+    let candles = "";
+    const bodyW = Math.max(3.4, Math.min(6.3, step * .58));
+    bars.forEach((b, i) => {
+      const up = b.close >= b.open;
+      const color = up ? "#2fd486" : "#f0616a";
+      const cx = x(i);
+      candles += `<line x1="${cx.toFixed(2)}" y1="${y(b.high).toFixed(2)}" x2="${cx.toFixed(2)}" y2="${y(b.low).toFixed(2)}" stroke="${color}" stroke-width="1" opacity=".68"/>`;
+      const yo = Math.min(y(b.open), y(b.close));
+      const yc = Math.max(y(b.open), y(b.close));
+      const h = Math.max(1.3, yc - yo);
+      candles += `<rect x="${(cx - bodyW / 2).toFixed(2)}" y="${yo.toFixed(2)}" width="${bodyW.toFixed(2)}" height="${h.toFixed(2)}" rx=".6" fill="${color}" opacity="${up ? .78 : .82}"/>`;
+    });
+
+    // Volume
+    let volumes = "";
+    bars.forEach((b, i) => {
+      const h = Math.max(1, (b.volume / maxVol) * (volBottom - volTop));
+      const color = b.close >= b.open ? "#2fd486" : "#f0616a";
+      volumes += `<rect x="${(x(i) - bodyW / 2).toFixed(2)}" y="${(volBottom - h).toFixed(2)}" width="${bodyW.toFixed(2)}" height="${h.toFixed(2)}" rx=".5" fill="${color}" opacity=".18"/>`;
+    });
+
+    // Trigger marker near the end: 14:40–14:45 bar, last closed bar is 14:55.
+    const tx = x(triggerIndex);
+    const triggerPrice = bars[triggerIndex].low;
+    const ty = y(triggerPrice);
+    const labelX = Math.min(W - 162, tx + 9);
+    const triggerMarker = `
+      <line x1="${tx.toFixed(2)}" y1="${top}" x2="${tx.toFixed(2)}" y2="${volBottom}" stroke="#efb45d" stroke-width="1" stroke-dasharray="3 4" opacity=".55"/>
+      <circle cx="${tx.toFixed(2)}" cy="${ty.toFixed(2)}" r="3.2" fill="#efb45d" stroke="#0f161f" stroke-width="1.4"/>
+      <rect x="${labelX.toFixed(2)}" y="22" width="111" height="22" rx="5" fill="#17211f" stroke="#3f4c35"/>
+      <circle cx="${(labelX + 10).toFixed(2)}" cy="33" r="2.7" fill="#efb45d"/>
+      <text x="${(labelX + 18).toFixed(2)}" y="36.3" fill="#c9b47b" font-family="ui-monospace,monospace" font-size="8.5">14:45 触发 · 收盘</text>
+    `;
+
+    // Current price line
+    const last = bars[bars.length - 1];
+    const currentY = y(last.close);
+    const currentLine = `
+      <line x1="${left}" y1="${currentY.toFixed(2)}" x2="${W - right + 4}" y2="${currentY.toFixed(2)}" stroke="#31d7c2" stroke-width="1" stroke-dasharray="4 5" opacity=".26"/>
+      <rect x="${W - right + 5}" y="${(currentY - 9).toFixed(2)}" width="62" height="18" rx="4" fill="#123c38" stroke="#2c6f66"/>
+      <text x="${W - right + 12}" y="${(currentY + 3.3).toFixed(2)}" fill="#84e9dd" font-family="ui-monospace,monospace" font-size="8.4">${last.close.toFixed(1)}</text>
+    `;
+
+    // Time labels: 96 closed 5m bars ending at 14:55.
+    const times = ["07:00", "09:00", "11:00", "13:00", "14:55"];
+    let timeLabels = "";
+    times.forEach((t, i) => {
+      const px = left + (i / (times.length - 1)) * (plotWidth - step);
+      timeLabels += `<text x="${px.toFixed(1)}" y="326" fill="#445a6b" font-family="ui-monospace,monospace" font-size="8.5" text-anchor="${i === 0 ? "start" : i === times.length - 1 ? "end" : "middle"}">${t}</text>`;
+    });
+
+    const svg = `
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="演示用 BTC-USDT-SWAP 5分钟 K线图，含布林带和一次触发标记">
+        <defs>
+          <linearGradient id="bollFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#71a7ff" stop-opacity=".075"/>
+            <stop offset="100%" stop-color="#71a7ff" stop-opacity=".018"/>
+          </linearGradient>
+          <linearGradient id="chartFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#080c11" stop-opacity="0"/>
+            <stop offset="100%" stop-color="#080c11" stop-opacity=".18"/>
+          </linearGradient>
+        </defs>
+        ${grid}
+        ${fillD ? `<path d="${fillD}" fill="url(#bollFill)"/>` : ""}
+        ${bollPts.length ? `<path d="${linePath(upper)}" fill="none" stroke="#71a7ff" stroke-width="1" opacity=".38"/>` : ""}
+        ${bollPts.length ? `<path d="${linePath(mid)}" fill="none" stroke="#9e8cff" stroke-width="1" opacity=".4" stroke-dasharray="2 4"/>` : ""}
+        ${bollPts.length ? `<path d="${linePath(lower)}" fill="none" stroke="#71a7ff" stroke-width="1" opacity=".38"/>` : ""}
+        ${candles}
+        ${currentLine}
+        ${volumes}
+        <line x1="${left}" y1="${volTop - 8}" x2="${W - right + 4}" y2="${volTop - 8}" stroke="#182530" stroke-width="1"/>
+        <text x="${left}" y="${volTop - 13}" fill="#4b6072" font-family="ui-monospace,monospace" font-size="7.5" letter-spacing=".08em">VOLUME</text>
+        ${timeLabels}
+        ${triggerMarker}
+        <rect x="0" y="0" width="${W}" height="${H}" fill="url(#chartFade)" pointer-events="none"/>
+      </svg>`;
+    mount.innerHTML = svg;
+
+    // Keep the surrounding quote values consistent with the plotted last bar.
+    const lastIndex = bars.length - 1;
+    const fmtPrice = price => new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    }).format(price);
+    const lastBar = bars[lastIndex];
+    document.getElementById("chartLastPrice").textContent = fmtPrice(lastBar.close);
+    document.getElementById("chartOpen").textContent = fmtPrice(lastBar.open);
+    document.getElementById("chartHigh").textContent = fmtPrice(lastBar.high);
+    document.getElementById("chartLow").textContent = fmtPrice(lastBar.low);
+    document.getElementById("chartClose").textContent = fmtPrice(lastBar.close);
+    const change = (lastBar.close / bars[0].open - 1) * 100;
+    const changeEl = document.getElementById("chartChange");
+    changeEl.textContent = `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
+    changeEl.style.color = change >= 0 ? "var(--up)" : "var(--down)";
+    if (upper[lastIndex] != null) {
+      document.getElementById("chartBands").textContent =
+        `BOLL 上轨 ${fmtPrice(upper[lastIndex])} · 中轨 ${fmtPrice(mid[lastIndex])} · 下轨 ${fmtPrice(lower[lastIndex])}`;
+    }
+  }
+
+  buildChart();
+})();
+</script>
+</body>
+</html>
