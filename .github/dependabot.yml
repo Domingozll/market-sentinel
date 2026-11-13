@@ -6,10 +6,17 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      production-dependencies:
+      production-minor-patch:
         dependency-type: production
-      development-dependencies:
+        update-types: ["minor", "patch"]
+      development-minor-patch:
         dependency-type: development
+        update-types: ["minor", "patch"]
+    ignore:
+      # Keep typings aligned with the minimum supported runtime (Node 24).
+      # Revisit together with a deliberate Node 26 migration.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -22,3 +29,7 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # Node major upgrades are deliberate runtime migrations, not routine bumps.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
