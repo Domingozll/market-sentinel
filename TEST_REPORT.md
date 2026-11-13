@@ -42,7 +42,7 @@
 http://127.0.0.1:8787
 ```
 
-容器只映射到宿主机 loopback，不对局域网暴露。Webhook 由用户在本机设置页配置，仓库不包含任何真实凭据。
+验收默认只映射到宿主机 loopback；Docker Compose 可通过 `BIND_HOST=0.0.0.0` 显式开放到可信局域网，但这会暴露无认证的本地 UI/API。Webhook 由用户在本机设置页配置，仓库不包含任何真实凭据。
 
 ## 3. 自动化测试明细
 
@@ -123,7 +123,7 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 
 ### 安全与系统功能
 
-- API 只接受本机 loopback 部署；跨站 Origin 的写请求被拒绝。
+- 默认仅通过本机 loopback 访问；跨站 Origin 的写请求被拒绝。显式 `BIND_HOST=0.0.0.0` 时 API 仍无认证，仅供可信局域网。
 - Webhook 必须使用 Discord 官方 HTTPS 域名。
 - 静态资源：
   - 无目录列表；
@@ -179,7 +179,7 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 5. 首版只支持一个 Discord Webhook；不自动下单；不支持序列条件（A 后 N 根内 B）。
 6. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
 7. 前端包约 1.5 MB（gzip ~500 KB），Vite 有 chunk size 警告，不影响功能。
-8. 未做专业渗透测试；已做的安全测试、依赖审计和本机 loopback 约束见上。
+8. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
 
 ## 8. 复现命令
 

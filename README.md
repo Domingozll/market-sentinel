@@ -94,7 +94,7 @@
 - 规则编辑器实时预览、当前判断、Discord 消息预览。
 - 行情图指标可配置：BOLL、KDJ、RSI、MACD、成交量独立开关，参数即时生效并保存在本机浏览器。
 - 历史试跑：回看 7/30 天，统计触发次数（不计算盈亏）。
-- 安全静态文件服务、CSP、CSRF Origin 校验、本地 loopback 绑定。
+- 安全静态文件服务、CSP、CSRF Origin 校验；默认仅本机访问，可显式开启可信局域网访问。
 
 ## 快速开始
 
@@ -121,12 +121,32 @@ docker compose down       # 停止并保留 ./data
 ```bash
 cp .env.example .env
 # 编辑 .env：
+# BIND_HOST=0.0.0.0          # 可选：允许可信局域网访问
 # PROXY_URL=http://127.0.0.1:7890
 # DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 docker compose up -d --build
 ```
 
-容器只把端口映射到宿主机 `127.0.0.1`，不会暴露到局域网。数据保存在仓库的 `data/`。
+容器默认只把端口发布到宿主机 `127.0.0.1`。数据保存在仓库的 `data/`。
+
+#### 局域网访问
+
+应用本身不提供登录/权限系统。仅在可信局域网中按以下方式开启：
+
+```bash
+cp .env.example .env        # 如果还没有 .env
+# 编辑 .env：BIND_HOST=0.0.0.0
+docker compose up -d
+```
+
+用本机局域网 IP 访问，例如 macOS 上：
+
+```bash
+ipconfig getifaddr en0      # 例如 192.168.1.4
+# 浏览器打开 http://192.168.1.4:8787
+```
+
+开启后，任何能访问该端口的人都能查看行情与规则、修改设置和 Webhook，并可创建/删除规则。不要做公网端口转发；如必须跨网络访问，请使用 VPN 或带认证的反向代理，并通过防火墙限制来源。
 
 ### 本地开发
 
@@ -243,7 +263,8 @@ flowchart LR
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `HOST` | `127.0.0.1` | 本地监听地址；Docker 内为 `0.0.0.0` |
+| `HOST` | `127.0.0.1` | 应用监听地址；Docker 内为 `0.0.0.0` |
+| `BIND_HOST` | `127.0.0.1` | 仅 Docker Compose：宿主机发布接口；`0.0.0.0` 允许可信局域网访问 |
 | `PORT` | `8787` | HTTP 端口 |
 | `DATA_DIR` | `./data` | SQLite 数据目录 |
 | `APP_BASE_URL` | `http://127.0.0.1:8787` | 诊断/日志中的基础地址 |
@@ -375,7 +396,7 @@ services:
   market-sentinel:
     build: .
     ports:
-      - "127.0.0.1:8787:8787"
+      - "${BIND_HOST:-127.0.0.1}:8787:8787"
     volumes:
       - ./data:/app/data
     restart: unless-stopped
@@ -400,7 +421,7 @@ services:
 
 ## 安全
 
-- 默认只绑定 loopback；不要直接把 `8787` 暴露到公网。
+- 默认只绑定 loopback；仅在可信局域网设置 `BIND_HOST=0.0.0.0`，不要将 `8787` 暴露到公网。应用没有登录认证，局域网内任何可达主机都能修改规则和设置。
 - 不请求 OKX API Key；只访问公共行情。
 - Webhook/代理凭据保存在本地 SQLite，依赖本机账户和磁盘权限。
 - Webhook 仅接受 Discord 官方 HTTPS Webhook 域名。
@@ -492,7 +513,7 @@ npm test
 
 ### 能多人使用吗？
 
-当前是单用户本地应用，没有账号体系。不要把它直接暴露到公网；需要远程访问时请使用 VPN/反向代理并自行增加认证。
+当前是单用户本地应用，没有账号体系。可以在可信局域网通过 `BIND_HOST=0.0.0.0` 访问，但任何能访问端口的人都能修改设置/Webhook；公网访问必须使用 VPN 或带认证的反向代理。
 
 ### 升级会丢数据吗？
 

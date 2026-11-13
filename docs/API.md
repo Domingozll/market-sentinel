@@ -1,8 +1,8 @@
 # API 参考
 
-Market Sentinel 的 HTTP API 与 Web UI 使用同一套 Fastify 路由。默认只监听 `127.0.0.1`，没有账号/Token 认证；请勿直接暴露到公网。
+Market Sentinel 的 HTTP API 与 Web UI 使用同一套 Fastify 路由。默认只监听 `127.0.0.1`，没有账号/Token 认证。可通过 Docker Compose 的 `BIND_HOST=0.0.0.0` 显式开放到可信局域网，但请勿直接暴露到公网。
 
-- Base URL：`http://127.0.0.1:8787`
+- Base URL：`http://127.0.0.1:8787`（局域网访问时为 `http://<host-lan-ip>:8787`）
 - 请求/响应：`application/json; charset=utf-8`
 - 时间：毫秒 Unix 时间戳
 - 错误结构：
@@ -380,3 +380,4 @@ data: {"type":"rules","at":1794212435396}
 - 官方前端使用同源请求，不需要额外 Token。
 - Webhook/代理凭据不会出现在响应中。
 - 不要把 API 直接暴露到公网；如需远程访问，请使用 VPN 或带认证的反向代理。
+- 局域网模式（`BIND_HOST=0.0.0.0`）仍然没有认证；任何可达客户端都可以修改设置。
