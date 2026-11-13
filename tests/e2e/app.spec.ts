@@ -130,6 +130,116 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByTestId('market-chart')).toHaveAttribute('data-chart-indicators', 'volume,kdj,rsi');
   });
 
+
+  test.describe('mobile viewport', () => {
+    test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+
+    test('stacks navigation, editor, event drawer and chart controls without overflow', async ({ page, request }) => {
+      page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+      page.on('pageerror', (error) => consoleErrors.push(String(error)));
+
+      const noHorizontalOverflow = async (label: string) => {
+        const dims = await page.evaluate(() => ({
+          scrollWidth: document.documentElement.scrollWidth,
+          innerWidth: window.innerWidth,
+        }));
+        expect(dims.scrollWidth, `${label} horizontal overflow`).toBeLessThanOrEqual(dims.innerWidth + 1);
+      };
+
+      // Make the drawer test independent when only this test is selected.
+      const eventCheck = await request.get('/api/events?limit=1');
+      const eventState = await eventCheck.json();
+      if (eventState.total === 0) {
+        const candleResponse = await request.get('/api/candles?instId=BTC-USDT-SWAP&timeframe=5m&limit=2');
+        const candleState = await candleResponse.json();
+        const lastClose = candleState.candles.at(-1).close;
+        await request.post('/api/rules', {
+          data: {
+            name: '移动端布局演示',
+            symbols: ['BTC-USDT-SWAP'],
+            triggerMode: 'close',
+            cooldownSec: 0,
+            enabled: true,
+            expression: {
+              kind: 'group',
+              op: 'AND',
+              children: [{
+                kind: 'condition',
+                id: 'mobile-close',
+                timeframe: '5m',
+                left: { series: 'price.close' },
+                cmp: 'gte',
+                right: { type: 'number', value: lastClose + 2 },
+              }],
+            },
+          },
+        });
+        await page.waitForTimeout(350);
+        await request.post('/__test__/advance');
+        await page.waitForTimeout(1200);
+      }
+
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.mobile-brand')).toBeVisible();
+      await expect(page.getByTestId('market-chart')).toBeVisible({ timeout: 20_000 });
+      const sidebar = await page.locator('.sidebar').boundingBox();
+      expect(sidebar?.y ?? 0).toBeGreaterThan(500);
+      await noHorizontalOverflow('dashboard');
+
+      await page.locator('.chart-card').scrollIntoViewIfNeeded();
+      await page.getByTestId('chart-indicators-button').click();
+      const panel = await page.getByTestId('chart-indicator-panel').boundingBox();
+      expect(panel?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((panel?.x ?? 0) + (panel?.width ?? 0)).toBeLessThanOrEqual(390);
+      expect((panel?.y ?? 0) + (panel?.height ?? 0)).toBeLessThanOrEqual(844);
+      await page.getByRole('button', { name: '关闭指标设置' }).click();
+      await noHorizontalOverflow('dashboard with chart');
+
+      await page.getByRole('link', { name: /规则/ }).click();
+      await expect(page.getByRole('heading', { name: '规则' })).toBeVisible();
+      await expect(page.locator('.rule-list-head')).toBeHidden();
+      await noHorizontalOverflow('rules');
+
+      await page.getByRole('link', { name: /事件/ }).click();
+      await expect(page.getByRole('heading', { name: '事件' })).toBeVisible();
+      const eventRow = page.locator('.event-row-real').first();
+      await expect(eventRow).toBeVisible();
+      await expect(eventRow.locator('.event-real-price')).toBeVisible();
+      await eventRow.click();
+      await expect(page.locator('.drawer')).toHaveClass(/open/);
+      const drawer = await page.locator('.drawer').boundingBox();
+      expect(drawer?.width ?? 0).toBeLessThanOrEqual(390);
+      await expect(page.locator('.drawer .detail-block').first()).toBeVisible();
+      await page.locator('.drawer .close-x').click();
+      await noHorizontalOverflow('events and drawer');
+
+      await page.getByRole('link', { name: /设置/ }).click();
+      await expect(page.getByRole('heading', { name: '设置' })).toBeVisible();
+      await noHorizontalOverflow('settings');
+
+      await page.goto('/rules/new', { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('heading', { name: '新建规则' })).toBeVisible();
+      const builder = await page.locator('.builder-card').boundingBox();
+      const side = await page.locator('.side-stack').boundingBox();
+      expect(side?.y ?? 0).toBeGreaterThan(builder?.y ?? 0);
+      await noHorizontalOverflow('rule editor');
+
+      await page.setViewportSize({ width: 768, height: 1024 });
+      await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.mobile-brand')).toBeVisible();
+      await expect(page.getByRole('heading', { name: '规则' })).toBeVisible();
+      const tabletSidebar = await page.locator('.sidebar').boundingBox();
+      expect(tabletSidebar?.y ?? 0).toBeGreaterThan(600);
+      await noHorizontalOverflow('tablet rules');
+
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.mobile-brand')).toBeHidden();
+      await expect(page.getByTestId('market-chart')).toBeVisible({ timeout: 20_000 });
+      await noHorizontalOverflow('desktop breakpoint');
+    });
+  });
+
   test.afterAll(async () => {
     expect(consoleErrors, `browser errors: ${consoleErrors.join('\n')}`).toEqual([]);
   });

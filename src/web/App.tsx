@@ -61,14 +61,7 @@ export function App() {
       <aside className="sidebar">
         <div className="brand" onClick={() => navigate('/')} role="button" tabIndex={0}
           onKeyDown={(event) => { if (event.key === 'Enter') navigate('/'); }}>
-          <div className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.5" opacity=".45" />
-              <circle cx="12" cy="12" r="5.1" stroke="currentColor" strokeWidth="1.3" opacity=".7" />
-              <circle cx="12" cy="12" r="1.8" fill="currentColor" />
-              <path d="M12 12 18.6 5.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </div>
+          <BrandMark />
           <div>
             <div className="brand-name">行情哨兵</div>
             <div className="brand-sub">MARKET SENTINEL</div>
@@ -115,6 +108,10 @@ export function App() {
 
       <div className="main">
         <header className="topbar">
+          <div className="mobile-brand">
+            <BrandMark />
+            <span>行情哨兵</span>
+          </div>
           <div className="crumb">
             工作台 <span className="sep">/</span> <b>{title}</b>
             <ChevronRight size={11} color="#3b4c5d" />
@@ -159,6 +156,19 @@ export function App() {
           </Routes>
         </main>
       </div>
+    </div>
+  );
+}
+
+function BrandMark() {
+  return (
+    <div className="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="8.4" stroke="currentColor" strokeWidth="1.5" opacity=".45" />
+        <circle cx="12" cy="12" r="5.1" stroke="currentColor" strokeWidth="1.3" opacity=".7" />
+        <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+        <path d="M12 12 18.6 5.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
     </div>
   );
 }

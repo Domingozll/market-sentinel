@@ -144,7 +144,7 @@ export function RulesPage() {
       </div>
 
       <div className="rules-table">
-        <div className="rule-list-grid" style={{ padding: '8px 17px', color: '#586b7c', fontSize: 9, letterSpacing: '.04em' }}>
+        <div className="rule-list-grid rule-list-head">
           <span>开关</span><span>规则 / 条件</span><span>状态</span><span>上次触发</span><span>24h</span><span style={{ textAlign: 'right' }}>操作</span>
         </div>
         {filtered.length === 0 ? (

@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Configurable market chart indicators: independently toggle BOLL, volume, KDJ, RSI and MACD, adjust their parameters in the chart panel, and persist the selection in the browser.
 - Chart legend chips now toggle indicators directly, with parameter labels such as `KDJ(15,3,3)`.
+- Responsive mobile and tablet layout: bottom navigation, two-column metrics, compact rule cards, event summary cards, full-width event drawer, bottom-sheet indicator settings and mobile-friendly editor actions.
 
 ### Fixed
 
+- Mobile event rows now preserve the trigger price, and the event drawer close button has an intentional icon-button style instead of browser-default chrome.
 - The dashboard chart no longer refetches on every SSE tick, which could cancel requests and leave the chart stuck on “loading” when the candles endpoint was slow.
 - Failed background chart refreshes keep the last successful candles instead of clearing the chart.
 
