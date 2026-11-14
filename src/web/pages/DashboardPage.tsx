@@ -346,6 +346,14 @@ export function DashboardPage() {
               ))}
             </div>
             <ChartIndicatorPanel settings={indicatorSettings} onChange={applyIndicatorSettings} />
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm chart-pro-link"
+              data-testid="open-pro-chart"
+              onClick={() => navigate(`/chart?symbol=${encodeURIComponent(activeSymbol)}&timeframe=${encodeURIComponent(timeframe)}`)}
+            >
+              <BarChart3 size={12} /> 专业图表
+            </button>
           </div>
         </div>
         <div className="chart-legend-real">

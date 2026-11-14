@@ -7,7 +7,7 @@ import {
   macd,
   rsi,
   volumeMovingAverage,
-} from '../../server/indicators';
+} from '../../shared/indicators';
 import { formatCompact, formatNumber, formatTime } from '../lib/format';
 import {
   activeChartSubPanes,

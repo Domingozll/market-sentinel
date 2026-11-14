@@ -90,11 +90,12 @@
 
 ### 界面与工具
 
-- React 19 + ECharts 6 的本地 UI。
-- 总览、规则、事件、设置。
+- React 19 + ECharts 6 + KLineChart 的本地 UI。
+- 总览、图表、规则、事件、设置。
 - 实时 SSE 刷新。
 - 规则编辑器实时预览、当前判断、Discord / PushPlus 消息预览。
-- 行情图指标可配置：BOLL、KDJ、RSI、MACD、成交量独立开关，参数即时生效并保存在本机浏览器。
+- 行情图指标可配置：BOLL、KDJ、RSI、MACD、成交量、MA 独立开关，参数即时生效并保存在本机浏览器。
+- 专业图表工作台：500 根初始历史、向左分页、SSE 实时最后一根、多 pane、画线、规则触发标记、Volume Profile、PC/移动端全屏。
 - 响应式移动端布局：底部导航、双列指标卡、可滚动筛选栏、全屏事件抽屉、底部弹层和移动端指标面板。
 - 历史试跑：回看 7/30 天，统计触发次数（不计算盈亏）。
 - 安全静态文件服务、CSP、CSRF Origin 校验；默认仅本机访问，可显式开启可信局域网访问。
@@ -206,6 +207,25 @@ npm start
 |---|---|
 | ![手机总览](docs/screenshots/mobile-overview.png) | ![手机规则编辑器](docs/screenshots/mobile-editor.png) |
 
+### 专业图表工作台
+
+访问 `/chart?symbol=BTC-USDT-SWAP&timeframe=5m`，或在总览图表点击“专业图表”。
+
+- KLineChart 10.1.0 渲染，支持缩放、平移、十字光标和多 pane。
+- 初始 500 根，拖到左侧按 `before` 分页；SSE 推送形成中/已收盘最后一根，失败时降级轮询。
+- BOLL / VOL / KDJ / RSI / MACD / MA；参数、显示状态保存在本机。
+- 趋势线、水平线、射线、通道、斐波那契、文字、画笔；按品种/周期持久化。
+- Volume Profile：可见范围价格桶、POC、70% Value Area。
+- 规则触发标记：点击打开事件摘要；也可从“触发 N”列表进入。
+- PC 使用原生 Fullscreen API；移动端不支持时自动使用等价的 CSS 全屏模式。
+- K 线保留：1m 7 天、3m 14 天、5m–30m 90 天、1H–4H 365 天、1D 730 天。当前仓库的 `data/` 位于 `/Volumes/Leo` 扩展盘；批量性能测试默认也写入该扩展盘。
+
+| 专业图表（桌面） | 手机全屏 |
+|---|---|
+| ![专业图表](docs/screenshots/chart-workspace.png) | ![手机全屏图表](docs/screenshots/chart-fullscreen-mobile.png) |
+
+数据分页、SSE、指标/画线和 Volume Profile 的实现契约见 [实现规范](docs/CHART_WORKSPACE_IMPLEMENTATION_SPEC.md)。
+
 ## 规则语义
 
 ### 触发
@@ -310,7 +330,8 @@ flowchart LR
 ### 数据保留
 
 - 事件默认保留 90 天，可配置。
-- `1m` K 线缓存 7 天，其他周期至少 7 天。
+- `1m` K 线缓存 7 天、`3m` 14 天、`5m–30m` 90 天、`1H–4H` 365 天、`1D` 730 天。
+- 大数据/性能基准：`npm run chart:perf`，默认写入 `/Volumes/Leo/market-sentinel-chart-perf` 并在结束后清理；可用 `CHART_PERF_DIR` 覆盖。
 - 删除规则为归档，不物理删除历史事件。
 - 备份：停止服务后复制 `data/`；恢复时放回后启动。
 
@@ -357,6 +378,8 @@ PushPlus 使用固定官方端点 `https://www.pushplus.plus/send/`、`txt` 模�
 | GET | `/api/instruments` | OKX 品种 |
 | GET/PUT | `/api/settings` | 配置 |
 | POST | `/api/settings/test-okx` | OKX 连通性 |
+| GET | `/api/candles` | K 线历史/分页 |
+| GET | `/api/candles/stream` | K 线实时 SSE |
 | POST | `/api/settings/test-discord` | Discord 测试 |
 | POST | `/api/settings/test-pushplus` | PushPlus 测试 |
 | GET | `/api/diagnostics` | 诊断 |
@@ -367,7 +390,7 @@ PushPlus 使用固定官方端点 `https://www.pushplus.plus/send/`、`txt` 模�
 ### 技术栈
 
 - Node.js 24、TypeScript、Fastify 5
-- React 19、Vite 6、ECharts 6
+- React 19、Vite 8、ECharts 6、KLineChart 10
 - SQLite（内置 `node:sqlite`，WAL）
 - WebSocket `ws`
 - Vitest 5、Playwright、Testing Library
@@ -377,9 +400,9 @@ PushPlus 使用固定官方端点 `https://www.pushplus.plus/send/`、`txt` 模�
 ```text
 src/server/       行情、指标、规则引擎、API、Discord/PushPlus 投递
 src/web/          React UI
-src/shared/       前后端共享类型、指标目录
+src/shared/       前后端共享类型、指标公式
 tests/unit/       指标/规则/引擎/试跑/前端工具与组件测试
-tests/integration/ API、OKX、Discord、PushPlus、行情服务、安全
+tests/integration/ API、OKX、Discord、PushPlus、图表分页/SSE、行情服务、安全
 tests/e2e/        Playwright 端到端
 docs/             设计、API、截图
 docker/           容器入口脚本
@@ -403,16 +426,17 @@ npm run test:e2e
 npm run test:all
 npm run build
 npm run smoke          # 对已运行的实例做无副作用探活
+npm run chart:perf     # 20k K 线外部盘性能基准
 ```
 
 ## 测试
 
 当前版本包含：
 
-- **105** 个单元/集成测试（20 个文件）
-- **7** 个浏览器 E2E 场景（含 PushPlus 配置和手机 / 平板 / 1024px 断点）
+- **113** 个单元/集成测试（22 个文件）
+- **9** 个浏览器 E2E 场景（含 PushPlus、专业图表、PC/移动端全屏和手机 / 平板 / 1024px 断点）
 - 加速 3 天行情回放（864 根 5m K 线）
-- OKX REST/WS 模拟服务、断线重连、Discord / PushPlus 投递与重试、SSE、安全静态资源、Docker 验收
+- OKX REST/WS 模拟服务、断线重连、Discord / PushPlus 投递与重试、图表分页/SSE、Volume Profile、安全静态资源、Docker 验收
 
 ```bash
 npm test
@@ -505,6 +529,8 @@ services:
 
 ## 路线图
 
+- [ ] 价格层级数据 Provider：订单簿深度、OKX 强平、链上清算/热力图
+- [ ] 把总览和试跑迁移到 KLineChart 并移除 ECharts
 - [ ] 多 Webhook / 按规则路由到不同频道
 - [ ] 同时向多个通知渠道发送
 - [ ] 规则版本历史与 diff
@@ -565,6 +591,8 @@ npm test
 
 - 单机运行；电脑睡眠、Docker 停止或进程退出时不监控。
 - 单一 OKX 数据源；单一通知渠道（Discord 或 PushPlus）。
+- v1.0 专业图表不包含订单簿、交易所强平或真实链上清算；这些留作 Provider 扩展。
+- 总览和试跑仍使用 ECharts，专业图表页使用 KLineChart；两套图表暂时并存。
 - 规则组合是 AND/OR 同时成立，不是序列规则。
 - 盘中触发可能重绘；建议默认使用收盘确认。
 - 规则试跑不是盈亏回测，不构成策略有效性的证明。
@@ -581,6 +609,7 @@ npm test
 - [Fastify](https://fastify.dev/)
 - [React](https://react.dev/)
 - [ECharts](https://echarts.apache.org/)
+- [KLineChart](https://github.com/klinecharts/KLineChart)（Apache-2.0，见 [NOTICE](NOTICE)）
 - [SQLite](https://www.sqlite.org/)
 - [Vitest](https://vitest.dev/) / [Playwright](https://playwright.dev/)
 - 所有提交 Issue、规则建议和改进文档的贡献者

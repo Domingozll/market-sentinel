@@ -93,6 +93,21 @@ export interface InstrumentInfo {
   baseCcy?: string;
   quoteCcy?: string;
   settleCcy?: string;
+  tickSz?: string;
+  lotSz?: string;
+  ctVal?: string;
+  ctValCcy?: string;
+}
+
+export interface CandlePageResponse {
+  instId: string;
+  timeframe: string;
+  candles: Candle[];
+  page: {
+    hasMore: boolean;
+    oldest: number | null;
+    newest: number | null;
+  };
 }
 
 export interface HealthResponse {
@@ -155,6 +170,19 @@ export const api = {
     request<{ instId: string; timeframe: string; candles: Candle[] }>(
       `/api/candles?instId=${encodeURIComponent(instId)}&timeframe=${encodeURIComponent(timeframe)}&limit=${limit}`,
     ),
+  candlesPage: (params: { instId: string; timeframe: string; limit?: number; before?: number }) => {
+    const qs = new URLSearchParams({
+      instId: params.instId,
+      timeframe: params.timeframe,
+      limit: String(params.limit ?? 500),
+    });
+    if (params.before !== undefined) qs.set('before', String(params.before));
+    return request<CandlePageResponse>(`/api/candles?${qs.toString()}`);
+  },
+  candlesStreamUrl: (instId: string, timeframe: string) => {
+    const qs = new URLSearchParams({ instId, timeframe });
+    return `/api/candles/stream?${qs.toString()}`;
+  },
   settings: () => request<{ settings: PublicSettings }>('/api/settings'),
   saveSettings: (payload: Record<string, unknown>) =>
     request<{ settings: PublicSettings }>('/api/settings', { method: 'PUT', body: JSON.stringify(payload) }),

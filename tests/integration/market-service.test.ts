@@ -109,6 +109,18 @@ describe('MarketService (REST + WebSocket)', () => {
     expect(market.getClosedCandles('BTC-USDT-SWAP', '5m', 400).length).toBeGreaterThanOrEqual(300);
     expect(store.countCandles()).toBeGreaterThanOrEqual(300);
 
+    // A chart-only pair must not replace the rule pair subscription.
+    await market.addChartPair({ instId: 'ETH-USDT-SWAP', timeframe: '5m' });
+    const chartDeadline = Date.now() + 5000;
+    while (Date.now() < chartDeadline && market.getPairStatus('ETH-USDT-SWAP', '5m').state !== 'healthy') {
+      await wait(20);
+    }
+    expect(market.getPairStatus('ETH-USDT-SWAP', '5m').state).toBe('healthy');
+    expect(market.getPairStatus('BTC-USDT-SWAP', '5m').state).toBe('healthy');
+    await market.releaseChartPair({ instId: 'ETH-USDT-SWAP', timeframe: '5m' });
+    expect(market.getPairStatus('BTC-USDT-SWAP', '5m').state).toBe('healthy');
+    expect(market.getClosedCandles('BTC-USDT-SWAP', '5m', 400).length).toBeGreaterThanOrEqual(300);
+
     const closedEvents: Candle[] = [];
     market.on('closed', (candle: Candle) => closedEvents.push(candle));
     const socket = sockets[0];

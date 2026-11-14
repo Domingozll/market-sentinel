@@ -14,7 +14,8 @@
     "test:e2e": "npm run build && playwright test",
     "test:all": "npm run test && npm run test:e2e",
     "check": "npm run typecheck && npm test",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "chart:perf": "tsx scripts/chart-perf.ts"
   },
   "keywords": [
     "okx",
@@ -53,6 +54,7 @@
     "echarts": "^6.1.0",
     "esbuild": "^0.28.2",
     "jsdom": "^31.0.0",
+    "klinecharts": "10.1.0",
     "lucide-react": "^1.71.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

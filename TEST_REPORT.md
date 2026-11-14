@@ -1,7 +1,7 @@
 # 行情哨兵 · 测试与部署验收报告
 
-> 日期：2026-11-09  
-> 版本：v1.0.0（含 2026-11-09 行情图指标、2026-11-14 移动端与 PushPlus 增量）
+> 日期：2026-11-15
+> 版本：v1.0.0（含 2026-11-09 行情图指标、2026-11-14 移动端/PushPlus、2026-11-15 专业图表增量）
 > 说明：本报告记录 v1.0.0 在本地 macOS + Docker 验收环境的结果；自动化测试命令可在任意支持 Node 24 的环境复现。  
 > 结论：在本文定义的范围内，**全部自动化测试通过，无已知未修复功能缺陷**；Docker 容器已在本机部署并通过健康检查。  
 > 注意：测试不能证明软件绝对没有缺陷；“无已知 bug”仅代表已覆盖场景全部通过。
@@ -25,15 +25,16 @@
 | 测试层 | 结果 |
 |---|---|
 | TypeScript 类型检查 | 通过 |
-| 单元 + 集成测试 | **20 个测试文件，105 个测试全部通过**（~2s 测试耗时） |
-| 浏览器 E2E | **7 个场景全部通过**（~12s） |
-| 构建 | 通过（Vite + esbuild；产物约 154 KB 服务端、前端 1.5 MB JS） |
+| 单元 + 集成测试 | **22 个测试文件，113 个测试全部通过**（~2s 测试耗时） |
+| 浏览器 E2E | **9 个场景全部通过**（~16s） |
+| 构建 | 通过（Vite + esbuild；服务端 174.3 KB，主前端 1.52 MB / 493 KB gzip，图表懒加载 chunk 269 KB / 71.7 KB gzip） |
 | 依赖安全审计 | `npm audit`、`npm audit --omit=dev` 均为 **0 vulnerabilities** |
-| Docker 镜像 | `market-sentinel:1.0.0`，约 277 MB |
+| Docker 镜像 | `market-sentinel:1.0.0`，约 266 MB |
 | 容器健康 | `healthy` |
 | 容器运行用户 | 应用进程 UID/GID 1000 (`node`)，入口仅以 root 执行目录授权后降权 |
 | 数据持久化 | 重启 / 重建容器后规则和状态保留；旧 `deliveries` 表自动新增渠道列，历史投递保留为 Discord |
-| 真实 OKX 容器验收 | REST 与 WebSocket 连接成功；5m 规则基线完成，状态“监控中” |
+| 真实 OKX 验收 | 临时真实实例与 Docker 容器均验证：专业图表真实 500 根、SSE、Volume Profile、全屏通过；容器保留现有 K 线与事件数据 |
+| 大数据外部盘验收 | 20,000 根 K 线写入 `/Volumes/Leo`，查询 1,000 根 1.7ms，5,000 根 Volume Profile 0.7ms |
 | 最终数据状态 | 验收使用独立临时数据；用户本地 data/ 不进入仓库 |
 
 ### 部署地址
@@ -59,6 +60,8 @@ http://127.0.0.1:8787
 | `tests/unit/rule-builder.test.tsx` | 2 | 条件构建器交互、AND/OR、添加/删除、条件数量上限 |
 | `tests/unit/chart-indicators.test.ts` | 5 | 图表指标默认值、范围钳制、MACD 关系、图例标签、localStorage 持久化 |
 | `tests/unit/chart-indicator-panel.test.tsx` | 2 | 指标面板开关、参数编辑、恢复默认、Escape 关闭 |
+| `tests/unit/volume-profile.test.ts` | 5 | Volume Profile/POC/VA、K 线归一化、图表配置迁移与持久化 |
+| `tests/integration/chart-api.test.ts` | 3 | K 线 before 分页、非法参数、SSE 首帧与响应头 |
 | `tests/integration/pushplus.test.ts` | 7 | PushPlus payload、固定端点、成功/429/5xx/业务错误、Token 脱敏、渠道投递全链路 |
 | `tests/integration/api.test.ts` | 9 | 规则 CRUD、预览、设置脱敏、CSRF、事件、Discord 投递、数据接口、试跑 |
 | `tests/integration/api-extra.test.ts` | 5 | 设置测试端点、永久失败手动重试、事件快照不可变、过滤与 404 |
@@ -66,7 +69,7 @@ http://127.0.0.1:8787
 | `tests/integration/okx-rest.test.ts` | 5 | OKX REST 解析、成交量字段、500 重试、错误、历史分页 |
 | `tests/integration/okx-ws.test.ts` | 1 | WebSocket 订阅频道、K 线推送解析 |
 | `tests/integration/okx-ws-reconnect.test.ts` | 1 | 意外断线后自动重连并重新订阅 |
-| `tests/integration/market-service.test.ts` | 1 | REST 初始历史 + WebSocket 订阅 + 健康状态 + 新收盘 K 线入库 |
+| `tests/integration/market-service.test.ts` | 1 | REST 初始历史 + WebSocket 订阅 + 健康状态 + 新收盘 K 线入库；规则/图表 pair 合并不退订 |
 | `tests/integration/web-static.test.ts` | 3 | 静态资源、SPA fallback、路径穿越/点文件防护、安全头、SSE 推送 |
 
 ### E2E 场景（真实浏览器）
@@ -78,6 +81,8 @@ http://127.0.0.1:8787
 5. 行情图指标面板：打开面板 → 启用/配置 KDJ 与 RSI → 关闭并刷新 → 设置持久化 → 点击图例隐藏成交量 → 从面板重新启用。
 6. PushPlus：设置页选择微信 PushPlus → 填写 Token/topic → 保存 → 发送测试消息 → 规则编辑器显示 PushPlus 文本预览并发送测试；Token 掩码、当前渠道和 mock 请求均已验证。
 7. 移动端布局：390px 下底部导航、图表指标底部面板、规则卡片、事件摘要与全屏抽屉、设置页和规则编辑器均无横向溢出；768px 与 1024px 断点也通过。
+8. 专业图表：KLineChart 加载、实时最后一根、事件列表/浮层、指标（RSI/KDJ/MACD/MA）、Volume Profile、画线持久化、品种/周期 URL、全屏。
+9. 手机专业图表：390px 无横向溢出；原生全屏不可用时 CSS 全屏覆盖整个视口。
 
 E2E 同时检查浏览器 console error 与 page error，最终为 0。
 
@@ -176,13 +181,15 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 ## 7. 已知限制 / 未覆盖项
 
 1. **没有向真实 Discord 频道或微信 PushPlus 发送消息**：测试使用受控 HTTP transport 验证完整 outbox 与通知交互，避免使用/泄露真实凭据。用户需要在 UI 中配置自己的 Webhook / PushPlus Token 并点击“发送测试消息”。
-2. **没有进行 24 小时壁钟连续运行**：进行了 864 根 5m K 线（3 天）的加速回放、WebSocket 断线重连测试和真实容器短时运行；长时间网络/系统休眠行为仍需在真实使用中观察。
-3. 盘中模式使用未收盘 K 线，历史盘中路径无法还原；试跑按收盘口径计算。
-4. 规则试跑不是盈亏回测，不评估策略有效性。
-5. 同一时间只使用一个通知渠道（Discord 或 PushPlus）；不自动下单；不支持序列条件（A 后 N 根内 B）。
-6. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
-7. 前端包约 1.5 MB（gzip ~500 KB），Vite 有 chunk size 警告，不影响功能。
-8. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
+2. **专业图表 v1.0 未接真实订单簿 / OKX 强平 / 链上清算**：原因和数据口径见 README 与设计文档，避免把 OKX 强平或第三方估算热力图误标为“链上清算”。
+3. **没有进行 24 小时壁钟连续运行**：进行了 864 根 5m K 线（3 天）的加速回放、WebSocket 断线重连测试和真实容器短时运行；长时间网络/系统休眠行为仍需在真实使用中观察。
+4. 盘中模式使用未收盘 K 线，历史盘中路径无法还原；试跑按收盘口径计算。
+5. 规则试跑不是盈亏回测，不评估策略有效性。
+6. 同一时间只使用一个通知渠道（Discord 或 PushPlus）；不自动下单；不支持序列条件（A 后 N 根内 B）。
+7. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
+8. 前端仍保留 ECharts 供总览/试跑使用，同时新增 KLineChart 懒加载 chunk；Vite 对旧主包有 chunk size 警告，不影响功能。
+9. KLineChart 自定义 Volume Profile 使用可见范围与价格桶近似，不是订单簿逐笔数据。
+10. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
 
 ## 8. 复现命令
 
@@ -192,6 +199,7 @@ npm ci
 npm run typecheck
 npm test
 npm run test:e2e
+npm run chart:perf
 npm audit
 npm run build
 docker compose build
@@ -213,10 +221,11 @@ docker compose ps
 3. 规则 → 使用模板或自定义条件 → 保存并启用。
 4. 在总览确认行情连接、规则状态与数据时间。
 5. 可在规则编辑器使用“试跑”观察最近 7/30 天触发频率。
-6. 事件页检查触发快照、通知渠道与投递状态。
+6. 图表 → 专业图表，检查缩放/分页/指标/Volume Profile/画线；PC 或手机点击“全屏”检查是否覆盖视口。
+7. 事件页检查触发快照、通知渠道与投递状态。
 
 如测试消息失败，请检查对应渠道的域名访问和代理配置；应用不会回显完整 Webhook URL 或 PushPlus Token。
 
 ## 10. 结论
 
-所有已定义的业务规则、指标公式、多周期/盘中触发、幂等与冷却、数据异常保护、Discord / PushPlus 投递、API、安全静态服务、SSE、可配置行情图、移动端/平板布局、浏览器交互和 Docker 部署场景均已通过自动化验证。当前交付在已测试范围内无已知未修复缺陷。
+所有已定义的业务规则、指标公式、多周期/盘中触发、幂等与冷却、数据异常保护、Discord / PushPlus 投递、API、安全静态服务、SSE、可配置行情图、KLineChart 专业图表、Volume Profile、PC/移动端全屏、移动端/平板布局、浏览器交互和 Docker 部署场景均已通过自动化验证。当前交付在已测试范围内无已知未修复缺陷。

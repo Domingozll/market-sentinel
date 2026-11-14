@@ -272,12 +272,34 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 ### `GET /api/candles`
 
 ```text
-/api/candles?instId=BTC-USDT-SWAP&timeframe=5m&limit=200
+/api/candles?instId=BTC-USDT-SWAP&timeframe=5m&limit=500
+/api/candles?instId=BTC-USDT-SWAP&timeframe=5m&limit=500&before=1763000000000
 ```
 
-- `limit` 20–500。
-- 优先读取本地缓存（含当前未收盘 K 线）；没有缓存时从 OKX 拉取。
-- 返回 `{ instId, timeframe, candles }`。
+- `limit` 20–1,000，默认 200；专业图表使用 500。
+- 不传 `before`：返回最新一页，合并 SQLite 已收盘 K 线和当前未收盘 K 线。
+- 传 `before`：只返回 `openTime < before` 的已收盘 K 线，用于向左分页。
+- 返回 `{ instId, timeframe, candles, page: { hasMore, oldest, newest } }`。
+- 按 `openTime` 升序、去重；没有缓存时从 OKX 回填并落库。
+
+### `GET /api/candles/stream`
+
+```text
+/api/candles/stream?instId=BTC-USDT-SWAP&timeframe=5m
+```
+
+`text/event-stream`，用于专业图表实时最后一根 K 线：
+
+```text
+event: candle
+data: {"candle":{"instId":"BTC-USDT-SWAP","timeframe":"5m","openTime":...,"confirm":false,...}}
+
+event: heartbeat
+data: {"now":...}
+```
+
+- 服务端为图表建立临时行情 pair 订阅；关闭时释放，但不退订规则仍在使用的 pair。
+- SSE 断开后前端降级为 2 秒轮询 `/api/candles?limit=2`。
 
 ### `GET /api/instruments`
 
@@ -285,7 +307,7 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 /api/instruments?query=BTC
 ```
 
-从 OKX 获取可交易品种，结果缓存 5 分钟。
+从 OKX 获取可交易品种，结果缓存 5 分钟；返回 `tickSz` / `lotSz` 等精度字段，专业图表用于 `setSymbol` 价格/数量精度。
 
 ## 设置
 

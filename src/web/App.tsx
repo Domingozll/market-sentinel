@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
+  CandlestickChart,
   ChevronRight,
   CircleDot,
   LayoutDashboard,
@@ -18,8 +19,11 @@ import { RuleEditorPage } from './pages/RuleEditorPage';
 import { EventsPage } from './pages/EventsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
+const ChartPage = lazy(() => import('./pages/ChartPage').then((module) => ({ default: module.ChartPage })));
+
 const navItems = [
   { to: '/', label: '总览', icon: LayoutDashboard, end: true },
+  { to: '/chart', label: '图表', icon: CandlestickChart },
   { to: '/rules', label: '规则', icon: SlidersHorizontal },
   { to: '/events', label: '事件', icon: Bell },
   { to: '/settings', label: '设置', icon: Settings },
@@ -30,6 +34,7 @@ function pageTitle(pathname: string): string {
   if (pathname === '/rules') return '规则';
   if (pathname === '/rules/new') return '新建规则';
   if (/^\/rules\/[^/]+\/edit$/.test(pathname)) return '编辑规则';
+  if (pathname === '/chart') return '专业图表';
   if (pathname === '/events') return '事件';
   if (pathname === '/settings') return '设置';
   return '行情哨兵';
@@ -149,6 +154,7 @@ export function App() {
           ) : null}
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/chart" element={<Suspense fallback={<div className="loading-block">正在加载专业图表…</div>}><ChartPage /></Suspense>} />
             <Route path="/rules" element={<RulesPage />} />
             <Route path="/rules/new" element={<RuleEditorPage />} />
             <Route path="/rules/:id/edit" element={<RuleEditorPage />} />

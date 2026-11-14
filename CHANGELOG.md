@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable market chart indicators: independently toggle BOLL, volume, KDJ, RSI and MACD, adjust their parameters in the chart panel, and persist the selection in the browser.
 - Chart legend chips now toggle indicators directly, with parameter labels such as `KDJ(15,3,3)`.
 - Responsive mobile and tablet layout: bottom navigation, two-column metrics, compact rule cards, event summary cards, full-width event drawer, bottom-sheet indicator settings and mobile-friendly editor actions.
+- Professional KLineChart workspace at `/chart`: 500-bar initial history, cursor pagination, SSE last-bar updates, multi-pane indicators (BOLL/VOL/KDJ/RSI/MACD/MA), drawing tools, rule event markers, Volume Profile (POC/Value Area), local persistence, screenshot and fullscreen.
+- Fullscreen support on desktop and mobile, with a CSS viewport fallback when the browser disallows element-level Fullscreen API.
+- K-line pagination/SSE APIs and chart-only market subscriptions that are merged with rule subscriptions instead of replacing them.
+- Longer candle retention for 1H–1D charts and an external-volume 20k-bar performance benchmark (`npm run chart:perf`).
 - WeChat PushPlus notification channel: selectable Discord/PushPlus channel, masked token storage, optional topic, test message, event-channel persistence and retry routing.
 
 ### Fixed

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { EventEmitter } from 'node:events';
 import {
+  type Candle,
   type EventView,
   type Rule,
   type RuleDraft,
@@ -334,17 +335,148 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     if (!instId || !timeframe || !TIMEFRAMES.includes(timeframe)) {
       return reply.code(400).send({ error: 'instId 或 timeframe 不合法' });
     }
-    const limit = Math.min(500, Math.max(20, intQuery(q.limit, 200)));
-    let candles = market.getCandlesIncludingForming(instId, timeframe, limit);
-    if (!candles.length) {
-      try {
-        const now = market.exchangeNow();
-        candles = await market.fetchHistory(instId, timeframe, now - limit * TF_MS[timeframe], now);
-      } catch (error) {
-        return reply.code(502).send({ error: `加载 K 线失败：${safeError(error)}` });
-      }
+    const limit = Math.min(1_000, Math.max(20, intQuery(q.limit, 200)));
+    const before = q.before === undefined ? null : intQuery(q.before, 0);
+    if (before !== null && before <= 0) {
+      return reply.code(400).send({ error: 'before 必须是毫秒时间戳' });
     }
-    return { instId, timeframe, candles };
+
+    const merge = (lists: Candle[][]): Candle[] => {
+      const map = new Map<number, Candle>();
+      for (const list of lists) {
+        for (const candle of list) {
+          const previous = map.get(candle.openTime);
+          // Prefer a confirmed bar over an in-progress snapshot at the same timestamp.
+          if (!previous || candle.confirm || !previous.confirm) map.set(candle.openTime, candle);
+        }
+      }
+      return [...map.values()].sort((a, b) => a.openTime - b.openTime);
+    };
+
+    let candles: Candle[];
+    let hasMore = false;
+    if (before !== null) {
+      candles = store.getCandlesBefore(instId, timeframe, before, limit);
+      if (!candles.length) {
+        try {
+          const from = before - limit * TF_MS[timeframe];
+          const fetched = (await market.fetchHistory(instId, timeframe, from, before)).filter((candle) => candle.confirm);
+          if (fetched.length) store.upsertCandles(fetched);
+          candles = store.getCandlesBefore(instId, timeframe, before, limit);
+        } catch (error) {
+          return reply.code(502).send({ error: `加载 K 线失败：${safeError(error)}` });
+        }
+      }
+      const oldest = candles[0]?.openTime;
+      hasMore = oldest !== undefined && store.hasCandlesBefore(instId, timeframe, oldest);
+    } else {
+      const live = market.getCandlesIncludingForming(instId, timeframe, limit);
+      const closed = store.getCandles(instId, timeframe, limit, true);
+      candles = merge([closed, live]).slice(-limit);
+      if (!candles.length) {
+        try {
+          const now = market.exchangeNow();
+          const fetched = (await market.fetchHistory(instId, timeframe, now - limit * TF_MS[timeframe], now)).filter(
+            (candle) => candle.confirm,
+          );
+          if (fetched.length) store.upsertCandles(fetched);
+          candles = merge([store.getCandles(instId, timeframe, limit, true), live]).slice(-limit);
+        } catch (error) {
+          return reply.code(502).send({ error: `加载 K 线失败：${safeError(error)}` });
+        }
+      }
+      const oldest = candles[0]?.openTime;
+      hasMore = oldest !== undefined && store.hasCandlesBefore(instId, timeframe, oldest);
+    }
+
+    return {
+      instId,
+      timeframe,
+      candles,
+      page: {
+        hasMore,
+        oldest: candles[0]?.openTime ?? null,
+        newest: candles[candles.length - 1]?.openTime ?? null,
+      },
+    };
+  });
+
+  app.get('/api/candles/stream', async (request, reply) => {
+    const q = (request.query ?? {}) as Record<string, unknown>;
+    const instId = stringQuery(q.instId)?.toUpperCase();
+    const timeframe = stringQuery(q.timeframe) as Timeframe | undefined;
+    if (!instId || !timeframe || !TIMEFRAMES.includes(timeframe)) {
+      return reply.code(400).send({ error: 'instId 或 timeframe 不合法' });
+    }
+
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    reply.raw.write(': connected\n\n');
+
+    let closed = false;
+    let pending: Candle | null = null;
+    let flushTimer: NodeJS.Timeout | null = null;
+    let heartbeat: NodeJS.Timeout | null = null;
+    let lastKey = '';
+
+    const write = (event: string, payload: unknown): void => {
+      if (closed || reply.raw.destroyed || reply.raw.writableEnded) return;
+      reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    const flush = (): void => {
+      flushTimer = null;
+      if (!pending || closed) return;
+      const candle = pending;
+      pending = null;
+      const key = `${candle.openTime}|${candle.confirm ? 1 : 0}|${candle.close}|${candle.volume}`;
+      if (key === lastKey) return;
+      lastKey = key;
+      write('candle', { candle });
+    };
+
+    const onCandle = (candle: Candle): void => {
+      if (closed || candle.instId !== instId || candle.timeframe !== timeframe) return;
+      pending = candle;
+      if (!flushTimer) flushTimer = setTimeout(flush, 250);
+    };
+
+    const cleanup = (): void => {
+      if (closed) return;
+      closed = true;
+      if (flushTimer) clearTimeout(flushTimer);
+      if (heartbeat) clearInterval(heartbeat);
+      market.off('tick', onCandle);
+      market.off('closed', onCandle);
+      void market.releaseChartPair?.({ instId, timeframe });
+    };
+
+    market.on('tick', onCandle);
+    market.on('closed', onCandle);
+    request.raw.on('close', cleanup);
+    reply.raw.on('close', cleanup);
+
+    try {
+      await market.addChartPair?.({ instId, timeframe });
+      const snapshot = market.getCandlesIncludingForming(instId, timeframe, 1)[0];
+      if (snapshot) {
+        pending = snapshot;
+        flush();
+      }
+    } catch (error) {
+      write('error', { error: `订阅 K 线失败：${safeError(error)}` });
+      cleanup();
+      reply.raw.end();
+      return;
+    }
+
+    heartbeat = setInterval(() => write('heartbeat', { now: Date.now() }), 15_000);
+    heartbeat.unref?.();
   });
 
   app.get('/api/instruments', async (request, reply) => {

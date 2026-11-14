@@ -48,6 +48,8 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
   private getProxy: () => string;
   private pairs = new Map<string, PairState>();
   private desired = new Map<string, PairRef>();
+  private rulePairs = new Map<string, PairRef>();
+  private chartPairs = new Map<string, { pair: PairRef; refs: number }>();
   private ws: OkxWsClient;
   private wsConnected = false;
   private wsState: MarketConnectionState = 'idle';
@@ -147,8 +149,41 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
   }
 
   async ensurePairs(pairs: PairRef[]): Promise<void> {
-    const nextDesired = new Map<string, PairRef>();
-    for (const pair of pairs) nextDesired.set(pairKey(pair.instId, pair.timeframe), pair);
+    this.rulePairs = new Map<string, PairRef>();
+    for (const pair of pairs) this.rulePairs.set(pairKey(pair.instId, pair.timeframe), pair);
+    await this.applyDesiredPairs();
+  }
+
+  /** Add a chart-only pair without dropping pairs used by enabled rules. */
+  async addChartPair(pair: PairRef): Promise<void> {
+    const key = pairKey(pair.instId, pair.timeframe);
+    const existing = this.chartPairs.get(key);
+    if (existing) {
+      existing.refs += 1;
+      return;
+    }
+    this.chartPairs.set(key, { pair, refs: 1 });
+    try {
+      await this.applyDesiredPairs();
+    } catch (error) {
+      this.chartPairs.delete(key);
+      throw error;
+    }
+  }
+
+  async releaseChartPair(pair: PairRef): Promise<void> {
+    const key = pairKey(pair.instId, pair.timeframe);
+    const existing = this.chartPairs.get(key);
+    if (!existing) return;
+    existing.refs -= 1;
+    if (existing.refs > 0) return;
+    this.chartPairs.delete(key);
+    await this.applyDesiredPairs();
+  }
+
+  private async applyDesiredPairs(): Promise<void> {
+    const nextDesired = new Map<string, PairRef>(this.rulePairs);
+    for (const [key, entry] of this.chartPairs) nextDesired.set(key, entry.pair);
     this.desired = nextDesired;
     const initialization: Promise<void>[] = [];
     for (const pair of nextDesired.values()) {

@@ -773,14 +773,72 @@ export class Store {
       .reverse();
   }
 
+  getCandlesBefore(
+    instId: string,
+    timeframe: Timeframe,
+    before: number,
+    limit = 500,
+  ): Candle[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM candles
+         WHERE inst_id=? AND timeframe=? AND confirm=1 AND open_ts < ?
+         ORDER BY open_ts DESC LIMIT ?`,
+      )
+      .all(instId, timeframe, before, limit) as unknown as Record<string, number | string>[];
+    return rows
+      .map((row) => ({
+        instId: String(row.inst_id),
+        timeframe: String(row.timeframe) as Timeframe,
+        openTime: Number(row.open_ts),
+        open: Number(row.open),
+        high: Number(row.high),
+        low: Number(row.low),
+        close: Number(row.close),
+        volume: Number(row.vol_ccy_quote),
+        vol: Number(row.vol),
+        volCcy: Number(row.vol_ccy),
+        volCcyQuote: Number(row.vol_ccy_quote),
+        confirm: Boolean(row.confirm),
+      }))
+      .reverse();
+  }
+
+  hasCandlesBefore(instId: string, timeframe: Timeframe, before: number): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS present FROM candles
+         WHERE inst_id=? AND timeframe=? AND confirm=1 AND open_ts < ?
+         LIMIT 1`,
+      )
+      .get(instId, timeframe, before) as { present?: number } | undefined;
+    return Boolean(row?.present);
+  }
+
   countCandles(): number {
     return Number((this.db.prepare('SELECT COUNT(*) AS n FROM candles').get() as { n: number }).n);
   }
 
   pruneCandles(now: number): void {
-    this.db.prepare('DELETE FROM candles WHERE timeframe=? AND open_ts < ?').run('1m', now - 7 * 86_400_000);
-    this.db.prepare('DELETE FROM candles WHERE timeframe=? AND open_ts < ?').run('3m', now - 14 * 86_400_000);
-    this.db.prepare('DELETE FROM candles WHERE timeframe NOT IN (\'1m\',\'3m\') AND open_ts < ?').run(now - 90 * 86_400_000);
+    // Chart history is intentionally longer for 1H+ timeframes. The database
+    // lives under the user's data directory (external volume in this install).
+    const retentionDays: Record<Timeframe, number> = {
+      '1m': 7,
+      '3m': 14,
+      '5m': 90,
+      '15m': 90,
+      '30m': 90,
+      '1H': 365,
+      '2H': 365,
+      '4H': 365,
+      '1D': 730,
+    };
+    for (const [timeframe, days] of Object.entries(retentionDays) as [Timeframe, number][]) {
+      this.db.prepare('DELETE FROM candles WHERE timeframe=? AND open_ts < ?').run(
+        timeframe,
+        now - days * 86_400_000,
+      );
+    }
   }
 
   // Settings/meta ----------------------------------------------------------

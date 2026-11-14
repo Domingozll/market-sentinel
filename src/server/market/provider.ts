@@ -44,6 +44,8 @@ export interface InstrumentInfo {
 
 export interface AppMarket extends MarketDataProvider {
   start?(): Promise<void>;
+  addChartPair?(pair: PairRef): Promise<void>;
+  releaseChartPair?(pair: PairRef): Promise<void>;
   getInstruments(query: string): Promise<InstrumentInfo[]>;
   fetchHistory(instId: string, timeframe: import('../../shared/types').Timeframe, from: number, now?: number): Promise<Candle[]>;
   testConnection(proxyUrl?: string): Promise<{ ok: boolean; latencyMs: number; serverNow: number }>;
