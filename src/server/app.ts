@@ -12,6 +12,7 @@ import { MarketService } from './market/service';
 import type { AppMarket } from './market/provider';
 import { RuleEngine } from './rules/engine';
 import { DiscordClient, type DiscordTransport } from './alerts/discord';
+import { PushplusClient, type PushplusTransport } from './alerts/pushplus';
 import { DeliveryWorker } from './alerts/worker';
 import { registerApiRoutes } from './api/routes';
 
@@ -19,6 +20,7 @@ export interface RuntimeOptions {
   config?: Partial<AppConfig>;
   market?: AppMarket;
   discordTransport?: DiscordTransport;
+  pushplusTransport?: PushplusTransport;
   allowNonOfficialDiscord?: boolean;
   serveStatic?: boolean;
   logger?: FastifyServerOptions['logger'];
@@ -34,6 +36,7 @@ export interface Runtime {
   rest: OkxRestClient;
   market: AppMarket;
   discord: DiscordClient;
+  pushplus: PushplusClient;
   worker: DeliveryWorker;
   engine: RuleEngine;
   bus: EventEmitter;
@@ -95,15 +98,24 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     transport: options.discordTransport,
     allowNonOfficialUrls: options.allowNonOfficialDiscord ?? false,
   });
+  const pushplus = new PushplusClient({
+    network,
+    getProxy: () => settings.getProxyForPushplus(),
+    transport: options.pushplusTransport,
+  });
   const worker = new DeliveryWorker({
     store,
     discord,
     getWebhookUrl: () => settings.getPrivate().discordWebhookUrl,
+    pushplus,
+    getPushplusToken: () => settings.getPushplusToken(),
+    getPushplusTopic: () => settings.getPushplusTopic(),
   });
   const engine = new RuleEngine({
     store,
     market,
-    isWebhookConfigured: () => settings.getPublic().discordConfigured,
+    isNotificationConfigured: () => settings.isNotificationConfigured(),
+    getNotificationChannel: () => settings.getPrivate().notificationChannel,
     settleMs: options.engineTiming?.settleMs,
     tickThrottleMs: options.engineTiming?.tickThrottleMs,
     baselineDelayMs: options.engineTiming?.baselineDelayMs,
@@ -132,6 +144,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     engine,
     worker,
     discord,
+    pushplus,
     bus,
     serveStatic,
     logger: options.logger,
@@ -146,6 +159,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
     rest,
     market,
     discord,
+    pushplus,
     worker,
     engine,
     bus,
@@ -169,7 +183,7 @@ export async function createRuntime(options: RuntimeOptions = {}): Promise<Runti
 
 async function buildApp(
   config: AppConfig,
-  services: Pick<Runtime, 'store' | 'settings' | 'market' | 'engine' | 'worker' | 'discord' | 'bus'> & {
+  services: Pick<Runtime, 'store' | 'settings' | 'market' | 'engine' | 'worker' | 'discord' | 'pushplus' | 'bus'> & {
     serveStatic: boolean;
     logger?: FastifyServerOptions['logger'];
   },

@@ -18,7 +18,10 @@ services:
       TZ: Asia/Shanghai
       # Optional first-run bootstrap. Settings can be changed in the UI afterwards.
       PROXY_URL: "${PROXY_URL:-}"
+      NOTIFICATION_CHANNEL: "${NOTIFICATION_CHANNEL:-discord}"
       DISCORD_WEBHOOK_URL: "${DISCORD_WEBHOOK_URL:-}"
+      PUSHPLUS_TOKEN: "${PUSHPLUS_TOKEN:-}"
+      PUSHPLUS_TOPIC: "${PUSHPLUS_TOPIC:-}"
     volumes:
       - ./data:/app/data
     healthcheck:

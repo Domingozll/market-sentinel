@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aggregateTone,
   conditionLabel,
+  deliveryText,
   deliveryTone,
   formatCompact,
   formatDateTime,
@@ -43,6 +44,9 @@ describe('web formatting helpers', () => {
     expect(deliveryTone('sent')).toBe('success');
     expect(deliveryTone('dead')).toBe('danger');
     expect(deliveryTone('skipped')).toBe('off');
+    expect(deliveryText({ status: 'sent', channel: 'discord' })).toBe('已送达');
+    expect(deliveryText({ status: 'sent', channel: 'pushplus' })).toBe('已受理');
+    expect(deliveryText(null, '无投递记录')).toBe('无投递记录');
   });
 
   it('summarizes conditions for the editor', () => {

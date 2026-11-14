@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRuntime, type Runtime } from '../../src/server/app';
 import type { DiscordTransport } from '../../src/server/alerts/discord';
+import type { PushplusTransport } from '../../src/server/alerts/pushplus';
 import { FakeMarket } from './fake-market';
 
 export interface TestRuntime {
@@ -14,6 +15,7 @@ export interface TestRuntime {
 export async function buildTestRuntime(options: {
   market?: FakeMarket;
   transport?: DiscordTransport;
+  pushplusTransport?: PushplusTransport;
   engineTiming?: { settleMs?: number; tickThrottleMs?: number; baselineDelayMs?: number };
   serveStatic?: boolean;
   webDist?: string;
@@ -24,6 +26,7 @@ export async function buildTestRuntime(options: {
     dataDir: dir,
     market,
     discordTransport: options.transport,
+    pushplusTransport: options.pushplusTransport,
     allowNonOfficialDiscord: true,
     serveStatic: options.serveStatic ?? false,
     logger: false,

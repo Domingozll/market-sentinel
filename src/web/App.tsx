@@ -10,6 +10,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { formatClockCst } from './lib/format';
+import { NOTIFICATION_CHANNEL_LABEL } from '../shared/types';
 import { useAppData } from './context';
 import { DashboardPage } from './pages/DashboardPage';
 import { RulesPage } from './pages/RulesPage';
@@ -50,7 +51,8 @@ export function App() {
   const ws = topbarState(data?.status.wsState, data?.status.wsConnected);
   const activeRules = data?.stats.activeRules ?? 0;
   const todayEvents = data?.stats.todayEvents ?? 0;
-  const discordConfigured = data?.settings.discordConfigured ?? false;
+  const notificationsConfigured = data?.settings.notificationsConfigured ?? false;
+  const notificationChannel = data?.settings.notificationChannel ?? 'discord';
 
   useEffect(() => {
     document.title = `${title} · 行情哨兵`;
@@ -129,8 +131,8 @@ export function App() {
               </span>
             </div>
             <div className="discord-state">
-              <span className={discordConfigured ? 'green-dot' : 'warn-dot'} />
-              {discordConfigured ? 'Discord 已配置' : 'Discord 未配置'}
+              <span className={notificationsConfigured ? 'green-dot' : 'warn-dot'} />
+              {NOTIFICATION_CHANNEL_LABEL[notificationChannel]} {notificationsConfigured ? '已配置' : '未配置'}
             </div>
             <LiveClock />
             <div className="avatar" title="本地运行">

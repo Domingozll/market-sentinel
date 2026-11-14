@@ -370,3 +370,38 @@ h1,h2,h3,p{margin-top:0}
 .close-x:hover{background:#16232e;border-color:#3b5264;color:#e4edf6}
 
 .rule-list-head{padding:8px 17px;color:#586b7c;font-size:9px;letter-spacing:.04em}
+
+/* Notification channel picker */
+.channel-selector{margin-bottom:15px}
+.channel-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.channel-option{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border:1px solid #223440;border-radius:8px;background:#0b131b;color:#aebfcd;text-align:left;font:inherit;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.channel-option:hover{border-color:#35505e;background:#0e1921}
+.channel-option.selected{border-color:rgba(49,215,194,.42);background:rgba(49,215,194,.055);box-shadow:0 0 0 1px rgba(49,215,194,.08) inset}
+.channel-option-icon{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;background:rgba(49,215,194,.08);border:1px solid rgba(49,215,194,.15);color:#7cded2;flex:0 0 auto}
+.channel-option-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.channel-option-copy strong{font-size:11.5px;font-weight:560;color:#d6e4ed}
+.channel-option-copy small{font-size:8.5px;color:#607586;font-family:var(--mono);line-height:1.5}
+.channel-badge{padding:2px 6px;border:1px solid #293b46;border-radius:999px;color:#617789;font-size:8px;white-space:nowrap}
+.channel-badge.on{border-color:rgba(47,212,134,.22);color:#76caa8;background:rgba(47,212,134,.05)}
+
+/* PushPlus text preview */
+.pp-mini{display:grid;place-items:center;width:34px;height:26px;border-radius:6px;background:rgba(47,212,134,.1);border:1px solid rgba(47,212,134,.22);color:#77d7a7;font-size:9px;font-weight:600;letter-spacing:.04em}
+.pp-wrap{display:flex;flex-direction:column;gap:9px}
+.pp-message{border:1px solid #263b3a;border-radius:9px;background:linear-gradient(180deg,#0e1b1b,#0a1414);padding:10px;box-shadow:0 6px 18px rgba(0,0,0,.16)}
+.pp-chat-head{display:flex;align-items:center;gap:7px;color:#77d7a7;font-size:9.5px;font-family:var(--mono);margin-bottom:8px}
+.pp-chat-head time{margin-left:auto;color:#5c7168;font-size:8px}
+.pp-logo{display:grid;place-items:center;width:20px;height:20px;border-radius:5px;background:#2fd486;color:#07120d;font-size:10px;font-weight:800;font-family:var(--sans)}
+.pp-bubble{border:1px solid #214033;border-radius:7px;background:rgba(8,18,15,.82);padding:10px}
+.pp-title{font-size:10px;font-weight:600;color:#cfe9dc;margin-bottom:4px}
+.pp-meta{font-size:8.5px;color:#638174;font-family:var(--mono);margin-bottom:8px}
+.pp-line{display:flex;justify-content:space-between;gap:8px;font-size:9px;padding:3px 0;border-top:1px dashed rgba(70,105,91,.18)}
+.pp-line span{color:#647f73}
+.pp-line b{color:#b6cfc3;font-weight:500;text-align:right}
+.pp-conditions{border-top:1px solid #1c332b;margin-top:6px;padding-top:6px}
+.pp-conditions-head{font-size:8px;color:#5f7d6f;font-family:var(--mono);margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em}
+.pp-cond{display:flex;gap:5px;font-size:8.5px;line-height:1.55;color:#89a096;padding:1px 0}
+.pp-cond .ok{color:#2fd486}.pp-cond .no{color:#ef7c6f}
+.pp-cond.empty{color:#5f7368;font-size:8px}
+.pp-cond b{color:#b8ccc1;font-weight:500}
+.pp-foot{display:flex;justify-content:space-between;gap:6px;margin-top:8px;padding-top:6px;border-top:1px solid #1c332b;color:#50695d;font-size:7.5px;font-family:var(--mono)}
+.pushplus-preview .dc-actions{padding-top:0}

@@ -9,12 +9,12 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
-import { COMPARATOR_LABEL, SERIES_CATALOG, type EventView } from '../../shared/types';
+import { COMPARATOR_LABEL, NOTIFICATION_CHANNEL_LABEL, SERIES_CATALOG, type EventView } from '../../shared/types';
 import { api } from '../api';
 import { useAppData, useLiveVersion, useToast } from '../context';
 import {
   deliveryTone,
-  DELIVERY_TEXT,
+  deliveryText,
   formatDateTime,
   formatNumber,
   formatPrice,
@@ -159,7 +159,7 @@ export function EventsPage() {
       [...new Set(event.conditions.map((c) => c.timeframe))].join('+'),
       event.price,
       TRIGGER_MODE_TEXT[event.triggerMode],
-      event.delivery ? DELIVERY_TEXT[event.delivery.status] : '—',
+      deliveryText(event.delivery),
       event.id,
     ]);
     const csv = [header, ...rows]
@@ -248,7 +248,7 @@ export function EventsPage() {
               </span>
               <span className="event-real-price">{formatPrice(event.price)}</span>
               <span className="event-status-cell">
-                <StatusPill tone={deliveryTone(event.delivery?.status)}>{event.delivery ? DELIVERY_TEXT[event.delivery.status] : '—'}</StatusPill>
+                <StatusPill tone={deliveryTone(event.delivery?.status)}>{deliveryText(event.delivery)}</StatusPill>
               </span>
               <span style={{ color: '#465969', display: 'grid', placeItems: 'center' }}><ChevronRight size={12} /></span>
             </button>
@@ -298,7 +298,7 @@ export function EventsPage() {
                 <div className="row-between" style={{ marginBottom: 8 }}>
                   <h4 style={{ margin: 0 }}>触发快照</h4>
                   <StatusPill tone={deliveryTone(selected.delivery?.status)}>
-                    {selected.delivery ? DELIVERY_TEXT[selected.delivery.status] : '—'}
+                    {deliveryText(selected.delivery)}
                   </StatusPill>
                 </div>
                 <div className="detail-kv-grid">
@@ -334,17 +334,21 @@ export function EventsPage() {
                 </div>
               </div>
               <div className="detail-block">
-                <h4>Discord 投递</h4>
+                <h4>通知投递</h4>
                 <div className="delivery-history">
+                  <div className="delivery-history-row"><span className="k">通知渠道</span><span>{NOTIFICATION_CHANNEL_LABEL[selected.delivery?.channel ?? 'discord']}</span></div>
                   <div className="delivery-history-row">
                     <span className="k">当前状态</span>
-                    <span>{selected.delivery ? DELIVERY_TEXT[selected.delivery.status] : '无投递记录'}</span>
+                    <span>{deliveryText(selected.delivery, '无投递记录')}</span>
                   </div>
                   <div className="delivery-history-row"><span className="k">尝试次数</span><span>{selected.delivery?.attempts ?? 0}</span></div>
                   <div className="delivery-history-row"><span className="k">HTTP 状态</span><span>{selected.delivery?.lastHttpStatus ?? '—'}</span></div>
-                  <div className="delivery-history-row"><span className="k">Discord 消息 ID</span><span>{selected.delivery?.externalMessageId ?? '—'}</span></div>
+                  <div className="delivery-history-row"><span className="k">外部消息 ID</span><span>{selected.delivery?.externalMessageId ?? '—'}</span></div>
                   {selected.delivery?.lastError ? <div className="delivery-history-row"><span className="k">最近错误</span><span className="error-text" style={{ textAlign: 'right', maxWidth: 280 }}>{selected.delivery.lastError}</span></div> : null}
                 </div>
+                {selected.delivery?.channel === 'pushplus' && selected.delivery.status === 'sent' ? (
+                  <div className="muted-small" style={{ marginTop: 8 }}>PushPlus 返回成功表示请求已受理；最终微信送达以 PushPlus 流水号/微信为准。</div>
+                ) : null}
               </div>
               {selected.note ? <div className="detail-block"><h4>备注</h4><div className="form-section-note">{selected.note}</div></div> : null}
             </>

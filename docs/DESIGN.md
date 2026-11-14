@@ -1,5 +1,5 @@
 # 行情哨兵（Market Sentinel）
-## 本地行情指标监控与 Discord 通知系统 · 设计文档
+## 本地行情指标监控与 Discord / PushPlus 通知系统 · 设计文档
 
 > 版本：v1.0  
 > 日期：2026-11-09  
@@ -933,7 +933,7 @@ K 线返回格式（已实测验证）：
 
 ### 6.1 配置与安全
 
-- 只支持 Discord Webhook，不需要 Bot Token。
+- 支持 Discord Webhook 或微信 PushPlus，不需要 Bot Token。
 - Webhook URL 是秘密：保存后 API 不返回完整 URL，UI 只显示尾部 4 位；日志必须脱敏。
 - 只允许 `https://discord.com/api/webhooks/...`（以及 Discord 官方备用域名），避免被当作任意 URL 请求器/SSRF 跳板。
 - 发送请求带 `allowed_mentions: { "parse": [] }`，禁止 `@everyone`、角色和用户被规则名/备注意外触发。
@@ -1362,7 +1362,7 @@ npm start
 3. **组合语义**：首版“并且”是同时成立，不是“A 发生后 N 根内 B 发生”的时序组合。
 4. **触及口径**：默认用最低价/最高价（包含影线）判断触及；可切换为收盘价口径。
 5. **技术形态**：本地 Web 应用（Node 24 + React + SQLite），浏览器访问 `127.0.0.1:8787`，不做 Electron 客户端。
-6. **首版范围**：包含规则试跑和 K 线触发标记；只支持一个 Discord Webhook；品种优先支持 OKX 现货和 USDT 永续。
+6. **首版范围**：包含规则试跑和 K 线触发标记；同一时间只使用一个通知渠道（Discord 或 PushPlus）；品种优先支持 OKX 现货和 USDT 永续。
 7. **默认品种**：模板默认 `BTC-USDT-SWAP`，可改为任意 OKX 在线品种；不预置 ETH 规则。
 8. **界面风格**：中文、深色、桌面优先，首版不做浅色主题和移动端专门适配。
 

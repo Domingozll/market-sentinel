@@ -5,6 +5,7 @@ import { createRuntime, startRuntime } from '../../src/server/app';
 import { FakeMarket, makeCandles } from '../helpers/fake-market';
 import type { Candle } from '../../src/shared/types';
 import type { DiscordTransport } from '../../src/server/alerts/discord';
+import type { PushplusTransport } from '../../src/server/alerts/pushplus';
 
 const symbol = 'BTC-USDT-SWAP';
 const timeframe = '5m' as const;
@@ -33,10 +34,26 @@ const transport: DiscordTransport = {
   },
 };
 
+const pushplusMessages: unknown[] = [];
+const pushplusTransport: PushplusTransport = {
+  async fetch(_url, init) {
+    try {
+      pushplusMessages.push(JSON.parse(String(init.body)));
+    } catch {
+      pushplusMessages.push({ raw: String(init.body) });
+    }
+    return new Response(JSON.stringify({ code: 200, msg: 'ok', data: `e2e-pushplus-${pushplusMessages.length}` }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  },
+};
+
 const runtime = await createRuntime({
   dataDir: dir,
   market,
   discordTransport: transport,
+  pushplusTransport,
   serveStatic: true,
   logger: false,
   engineTiming: { settleMs: 80, tickThrottleMs: 80, baselineDelayMs: 80 },
@@ -71,6 +88,7 @@ runtime.app.post('/__test__/advance', async () => {
 
 runtime.app.get('/__test__/state', async () => ({
   sentMessages,
+  pushplusMessages,
   events: runtime.store.listEvents({ limit: 20 }),
   rules: runtime.store.listRules(),
 }));

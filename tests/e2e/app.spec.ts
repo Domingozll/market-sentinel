@@ -22,7 +22,7 @@ test.describe.serial('Market Sentinel system flow', () => {
     await page.getByTestId('save-settings').click();
     await expect(page.locator('.masked-value')).toContainText('discord.com');
     await expect(page.locator('.masked-value')).not.toContainText('e2e-token-abcdef');
-    await page.getByRole('button', { name: '发送测试消息' }).click();
+    await page.getByTestId('test-discord').click();
     await expect(page.locator('.test-feedback.ok')).toContainText('测试消息已发送');
 
     // Create a lower-band rule from a template.
@@ -130,6 +130,32 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByTestId('market-chart')).toHaveAttribute('data-chart-indicators', 'volume,kdj,rsi');
   });
 
+
+
+  test('configures PushPlus and sends a test message through the mocked transport', async ({ page, request }) => {
+    await page.goto('/settings', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: '设置' })).toBeVisible();
+    await page.getByTestId('notification-channel-pushplus').click();
+    await page.getByTestId('pushplus-token').fill('e2e-pushplus-token-1234');
+    await page.getByTestId('pushplus-topic').fill('e2e-group');
+    await page.getByTestId('save-settings').click();
+    await expect(page.getByTestId('notification-channel-pushplus')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('.topbar')).toContainText('微信 PushPlus 已配置');
+    const pushplusBlock = page.getByTestId('pushplus-block');
+    await expect(pushplusBlock.locator('.masked-value')).toContainText('••••');
+    await expect(pushplusBlock.locator('.masked-value')).not.toContainText('e2e-pushplus-token-1234');
+    await page.getByTestId('test-pushplus').click();
+    await expect(pushplusBlock.locator('.test-feedback.ok')).toContainText('PushPlus 已受理测试消息');
+    const stateResponse = await request.get('/__test__/state');
+    const state = await stateResponse.json();
+    expect(state.pushplusMessages.some((message: any) => String(message.title).includes('测试消息'))).toBe(true);
+
+    await page.goto('/rules/new', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('pushplus-preview')).toBeVisible();
+    await expect(page.getByTestId('discord-preview')).toHaveCount(0);
+    await page.getByTestId('pushplus-preview-test').click();
+    await expect(page.locator('.toast-item')).toContainText('PushPlus 测试消息已受理');
+  });
 
   test.describe('mobile viewport', () => {
     test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });

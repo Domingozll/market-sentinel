@@ -1,7 +1,7 @@
 # 行情哨兵 · 测试与部署验收报告
 
 > 日期：2026-11-09  
-> 版本：v1.0.0（含 2026-11-09 行情图指标配置、2026-11-14 移动端适配增量）  
+> 版本：v1.0.0（含 2026-11-09 行情图指标、2026-11-14 移动端与 PushPlus 增量）
 > 说明：本报告记录 v1.0.0 在本地 macOS + Docker 验收环境的结果；自动化测试命令可在任意支持 Node 24 的环境复现。  
 > 结论：在本文定义的范围内，**全部自动化测试通过，无已知未修复功能缺陷**；Docker 容器已在本机部署并通过健康检查。  
 > 注意：测试不能证明软件绝对没有缺陷；“无已知 bug”仅代表已覆盖场景全部通过。
@@ -18,21 +18,21 @@
 | 浏览器 | Google Chrome 156.0.8078.80 |
 | 测试框架 | Vitest 5.1.0 + Playwright 1.65 |
 | 行情源 | OKX 公共 REST + WebSocket（真实网络） |
-| Discord | 模拟 HTTP 传输（不向真实频道发送） |
+| Discord / PushPlus | 模拟 HTTP 传输（不向真实频道发送，不使用真实 Token） |
 
 ## 2. 结果总览
 
 | 测试层 | 结果 |
 |---|---|
 | TypeScript 类型检查 | 通过 |
-| 单元 + 集成测试 | **19 个测试文件，98 个测试全部通过**（~1.6s 测试耗时） |
-| 浏览器 E2E | **6 个场景全部通过**（~16s） |
+| 单元 + 集成测试 | **20 个测试文件，105 个测试全部通过**（~2s 测试耗时） |
+| 浏览器 E2E | **7 个场景全部通过**（~12s） |
 | 构建 | 通过（Vite + esbuild；产物约 154 KB 服务端、前端 1.5 MB JS） |
 | 依赖安全审计 | `npm audit`、`npm audit --omit=dev` 均为 **0 vulnerabilities** |
 | Docker 镜像 | `market-sentinel:1.0.0`，约 277 MB |
 | 容器健康 | `healthy` |
 | 容器运行用户 | 应用进程 UID/GID 1000 (`node`)，入口仅以 root 执行目录授权后降权 |
-| 数据持久化 | 重启 / 重建容器后规则和状态保留 |
+| 数据持久化 | 重启 / 重建容器后规则和状态保留；旧 `deliveries` 表自动新增渠道列，历史投递保留为 Discord |
 | 真实 OKX 容器验收 | REST 与 WebSocket 连接成功；5m 规则基线完成，状态“监控中” |
 | 最终数据状态 | 验收使用独立临时数据；用户本地 data/ 不进入仓库 |
 
@@ -42,7 +42,7 @@
 http://127.0.0.1:8787
 ```
 
-验收默认只映射到宿主机 loopback；Docker Compose 可通过 `BIND_HOST=0.0.0.0` 显式开放到可信局域网，但这会暴露无认证的本地 UI/API。Webhook 由用户在本机设置页配置，仓库不包含任何真实凭据。
+验收默认只映射到宿主机 loopback；Docker Compose 可通过 `BIND_HOST=0.0.0.0` 显式开放到可信局域网，但这会暴露无认证的本地 UI/API。通知凭据由用户在本机设置页配置，仓库不包含任何真实凭据。
 
 ## 3. 自动化测试明细
 
@@ -59,6 +59,7 @@ http://127.0.0.1:8787
 | `tests/unit/rule-builder.test.tsx` | 2 | 条件构建器交互、AND/OR、添加/删除、条件数量上限 |
 | `tests/unit/chart-indicators.test.ts` | 5 | 图表指标默认值、范围钳制、MACD 关系、图例标签、localStorage 持久化 |
 | `tests/unit/chart-indicator-panel.test.tsx` | 2 | 指标面板开关、参数编辑、恢复默认、Escape 关闭 |
+| `tests/integration/pushplus.test.ts` | 7 | PushPlus payload、固定端点、成功/429/5xx/业务错误、Token 脱敏、渠道投递全链路 |
 | `tests/integration/api.test.ts` | 9 | 规则 CRUD、预览、设置脱敏、CSRF、事件、Discord 投递、数据接口、试跑 |
 | `tests/integration/api-extra.test.ts` | 5 | 设置测试端点、永久失败手动重试、事件快照不可变、过滤与 404 |
 | `tests/integration/discord.test.ts` | 12 | Embed 内容、mentions 禁用、429/5xx/4xx、超时、敏感信息脱敏、outbox 重试/上限 |
@@ -75,7 +76,8 @@ http://127.0.0.1:8787
 3. 规则从列表暂停 → 恢复；确保状态从“已暂停”恢复为监控/满足状态。
 4. 规则编辑器实时预览 → 打开试跑 Modal → 运行历史回放 → 渲染触发统计和 ECharts K 线图。
 5. 行情图指标面板：打开面板 → 启用/配置 KDJ 与 RSI → 关闭并刷新 → 设置持久化 → 点击图例隐藏成交量 → 从面板重新启用。
-6. 移动端布局：390px 下底部导航、图表指标底部面板、规则卡片、事件摘要与全屏抽屉、设置页和规则编辑器均无横向溢出；768px 与 1024px 断点也通过。
+6. PushPlus：设置页选择微信 PushPlus → 填写 Token/topic → 保存 → 发送测试消息 → 规则编辑器显示 PushPlus 文本预览并发送测试；Token 掩码、当前渠道和 mock 请求均已验证。
+7. 移动端布局：390px 下底部导航、图表指标底部面板、规则卡片、事件摘要与全屏抽屉、设置页和规则编辑器均无横向溢出；768px 与 1024px 断点也通过。
 
 E2E 同时检查浏览器 console error 与 page error，最终为 0。
 
@@ -112,14 +114,14 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 - 数据缺口会触发 REST 补洞，补不齐则暂停规则。
 - 启动失败/无网络时 UI 显示连接状态，不崩溃。
 
-### Discord 通知
+### Discord / PushPlus 通知
 
 - 消息 Embed 结构、条件快照、事件 ID、免责声明。
 - `allowed_mentions.parse = []`，防止 @everyone。
 - 429 `Retry-After`、5xx 重试、4xx 永久失败、最大尝试次数。
 - pending → sending → sent / dead 状态流转。
 - 永久失败可在事件详情手动重试。
-- Webhook 脱敏，不出现在 API/诊断/错误日志。
+- Webhook / PushPlus Token 脱敏，不出现在 API/诊断/错误日志。
 - 成功投递后 E2E 验证事件状态、消息内容和投递记录。
 
 ### 安全与系统功能
@@ -173,11 +175,11 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 
 ## 7. 已知限制 / 未覆盖项
 
-1. **没有向真实 Discord 频道发送消息**：测试使用受控 HTTP transport 验证完整 outbox/Discord 交互，避免使用/泄露真实 Webhook。用户需要在 UI 中配置自己的 Webhook 并点击“发送测试消息”。
+1. **没有向真实 Discord 频道或微信 PushPlus 发送消息**：测试使用受控 HTTP transport 验证完整 outbox 与通知交互，避免使用/泄露真实凭据。用户需要在 UI 中配置自己的 Webhook / PushPlus Token 并点击“发送测试消息”。
 2. **没有进行 24 小时壁钟连续运行**：进行了 864 根 5m K 线（3 天）的加速回放、WebSocket 断线重连测试和真实容器短时运行；长时间网络/系统休眠行为仍需在真实使用中观察。
 3. 盘中模式使用未收盘 K 线，历史盘中路径无法还原；试跑按收盘口径计算。
 4. 规则试跑不是盈亏回测，不评估策略有效性。
-5. 首版只支持一个 Discord Webhook；不自动下单；不支持序列条件（A 后 N 根内 B）。
+5. 同一时间只使用一个通知渠道（Discord 或 PushPlus）；不自动下单；不支持序列条件（A 后 N 根内 B）。
 6. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
 7. 前端包约 1.5 MB（gzip ~500 KB），Vite 有 chunk size 警告，不影响功能。
 8. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
@@ -207,14 +209,14 @@ docker compose ps
 ## 9. 用户最终验收步骤
 
 1. 打开 <http://127.0.0.1:8787>。
-2. 设置 → 填写 Discord Webhook → 保存 → 发送测试消息，确认 Discord 收到。
+2. 设置 → 选择 Discord 或微信 PushPlus → 填写对应凭据 → 保存 → 发送测试消息并确认收到。
 3. 规则 → 使用模板或自定义条件 → 保存并启用。
 4. 在总览确认行情连接、规则状态与数据时间。
 5. 可在规则编辑器使用“试跑”观察最近 7/30 天触发频率。
-6. 事件页检查触发快照与 Discord 投递状态。
+6. 事件页检查触发快照、通知渠道与投递状态。
 
-如测试消息失败，请检查 Discord 域名访问和代理配置；应用本身不会回显完整 Webhook URL。
+如测试消息失败，请检查对应渠道的域名访问和代理配置；应用不会回显完整 Webhook URL 或 PushPlus Token。
 
 ## 10. 结论
 
-所有已定义的业务规则、指标公式、多周期/盘中触发、幂等与冷却、数据异常保护、Discord 投递、API、安全静态服务、SSE、可配置行情图、移动端/平板布局、浏览器交互和 Docker 部署场景均已通过自动化验证。当前交付在已测试范围内无已知未修复缺陷。
+所有已定义的业务规则、指标公式、多周期/盘中触发、幂等与冷却、数据异常保护、Discord / PushPlus 投递、API、安全静态服务、SSE、可配置行情图、移动端/平板布局、浏览器交互和 Docker 部署场景均已通过自动化验证。当前交付在已测试范围内无已知未修复缺陷。

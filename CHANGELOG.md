@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable market chart indicators: independently toggle BOLL, volume, KDJ, RSI and MACD, adjust their parameters in the chart panel, and persist the selection in the browser.
 - Chart legend chips now toggle indicators directly, with parameter labels such as `KDJ(15,3,3)`.
 - Responsive mobile and tablet layout: bottom navigation, two-column metrics, compact rule cards, event summary cards, full-width event drawer, bottom-sheet indicator settings and mobile-friendly editor actions.
+- WeChat PushPlus notification channel: selectable Discord/PushPlus channel, masked token storage, optional topic, test message, event-channel persistence and retry routing.
 
 ### Fixed
 

@@ -1,8 +1,8 @@
 # 行情哨兵 · Market Sentinel
 
-> 本地优先的 OKX 行情指标监控台：用可视化条件组合 Bollinger Bands、KDJ、RSI、MACD 与成交量，在条件由“不满足”变为“满足”时通过 Discord Webhook 提醒，并保留完整的触发快照。
+> 本地优先的 OKX 行情指标监控台：用可视化条件组合 Bollinger Bands、KDJ、RSI、MACD 与成交量，在条件由“不满足”变为“满足”时通过 Discord Webhook 或微信 PushPlus 提醒，并保留完整的触发快照。
 >
-> A local-first OKX market indicator monitor with visual rules, a deterministic edge-triggered engine, Discord alerts, and a full audit trail. No OKX API key required.
+> A local-first OKX market indicator monitor with visual rules, a deterministic edge-triggered engine, Discord or WeChat PushPlus alerts, and a full audit trail. No OKX API key required.
 
 [![CI](https://github.com/Domingozll/market-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/Domingozll/market-sentinel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-31d7c2.svg)](LICENSE)
@@ -10,7 +10,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 
 > 仅提供行情提醒与记录，不自动下单，不构成投资建议。  
-> Not affiliated with OKX or Discord.
+> Not affiliated with OKX, Discord or PushPlus.
 
 ![行情哨兵总览](docs/screenshots/overview.png)
 
@@ -27,6 +27,7 @@
 - [规则语义](#规则语义)
 - [架构](#架构)
 - [配置](#配置)
+- [通知渠道](#通知渠道)
 - [API](#api)
 - [开发](#开发)
 - [测试](#测试)
@@ -80,18 +81,19 @@
 
 ### 通知与审计
 
-- Discord Embed，包含规则、品种、周期、价格、条件快照、事件 ID。
-- `allowed_mentions.parse = []`，默认禁止所有 mention。
+- 通知渠道：Discord Webhook 或微信 PushPlus，二选一。
+- Discord Embed 包含规则、品种、周期、价格、条件快照、事件 ID；PushPlus 使用微信文本消息。
+- Discord 默认禁止所有 mention；PushPlus 使用 `txt` 模板，不注入 HTML。
 - SQLite outbox 投递队列；429 遵守 `Retry-After`；5xx 退避重试；4xx 永久失败。
-- 事件详情支持手动重发。
-- Webhook URL 保存后只显示掩码，不写入日志/诊断/API 响应。
+- 事件详情支持手动重发；投递记录保存触发时的渠道。
+- Webhook / PushPlus Token 保存后只显示掩码，不写入日志/诊断/API 响应。
 
 ### 界面与工具
 
 - React 19 + ECharts 6 的本地 UI。
 - 总览、规则、事件、设置。
 - 实时 SSE 刷新。
-- 规则编辑器实时预览、当前判断、Discord 消息预览。
+- 规则编辑器实时预览、当前判断、Discord / PushPlus 消息预览。
 - 行情图指标可配置：BOLL、KDJ、RSI、MACD、成交量独立开关，参数即时生效并保存在本机浏览器。
 - 响应式移动端布局：底部导航、双列指标卡、可滚动筛选栏、全屏事件抽屉、底部弹层和移动端指标面板。
 - 历史试跑：回看 7/30 天，统计触发次数（不计算盈亏）。
@@ -124,7 +126,9 @@ cp .env.example .env
 # 编辑 .env：
 # BIND_HOST=0.0.0.0          # 可选：允许可信局域网访问
 # PROXY_URL=http://127.0.0.1:7890
+# NOTIFICATION_CHANNEL=pushplus
 # DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+# PUSHPLUS_TOKEN=...
 docker compose up -d --build
 ```
 
@@ -147,7 +151,7 @@ ipconfig getifaddr en0      # 例如 192.168.1.4
 # 浏览器打开 http://192.168.1.4:8787
 ```
 
-开启后，任何能访问该端口的人都能查看行情与规则、修改设置和 Webhook，并可创建/删除规则。不要做公网端口转发；如必须跨网络访问，请使用 VPN 或带认证的反向代理，并通过防火墙限制来源。
+开启后，任何能访问该端口的人都能查看行情与规则、修改设置和通知凭据，并可创建/删除规则。不要做公网端口转发；如必须跨网络访问，请使用 VPN 或带认证的反向代理，并通过防火墙限制来源。
 
 ### 本地开发
 
@@ -174,8 +178,8 @@ npm start
 
 ## 首次使用
 
-1. 打开“设置”，填写 Discord Webhook URL，保存。
-2. 点击“发送测试消息”，确认 Discord 收到。
+1. 打开“设置”，选择 Discord 或微信 PushPlus，填写对应凭据并保存。
+2. 点击“发送测试消息”，确认对应渠道收到。
 3. 进入“规则”，从模板创建一条规则，例如“下轨触及”。
 4. 保存并启用；系统会重建当前基线，之后条件从假变真时通知。
 5. 在“事件”页查看触发快照、投递状态和错误信息。
@@ -234,7 +238,7 @@ npm start
 
 ### 试跑
 
-试跑使用历史已收盘 K 线按相同公式回放，统计触发次数，不计算盈亏、不发送 Discord、不写正式事件。历史盘中路径无法精确还原，因此按收盘口径模拟。
+试跑使用历史已收盘 K 线按相同公式回放，统计触发次数，不计算盈亏、不发送通知、不写正式事件。历史盘中路径无法精确还原，因此按收盘口径模拟。
 
 ## 架构
 
@@ -249,6 +253,7 @@ flowchart LR
   Engine --> Outbox[(Delivery Outbox)]
   Outbox --> Worker[DeliveryWorker]
   Worker --> Discord[Discord Webhook]
+  Worker --> PushPlus[WeChat PushPlus]
   Fastify[Fastify API] --> Store
   Fastify --> Engine
   React[React UI] --> Fastify
@@ -282,15 +287,20 @@ flowchart LR
 | `OKX_REST_BASE` | `https://openapi.okx.com` | OKX 公共 REST |
 | `OKX_WS_URL` | `wss://ws.okx.com/ws/v5/business` | OKX 业务 WebSocket |
 | `PROXY_URL` | 空 | 可选 HTTP 代理，REST/WS 共用 |
-| `DISCORD_WEBHOOK_URL` | 空 | 首次启动的可选初始 Webhook |
+| `NOTIFICATION_CHANNEL` | `discord` | 首次启动的默认通知渠道：`discord` / `pushplus` |
+| `DISCORD_WEBHOOK_URL` | 空 | 首次启动的可选初始 Discord Webhook |
+| `PUSHPLUS_TOKEN` | 空 | 首次启动的可选 PushPlus Token |
+| `PUSHPLUS_TOPIC` | 空 | 可选 PushPlus 群组编码 |
 | `TZ` | `Asia/Shanghai` | 日志/显示时区 |
 | `LOG_LEVEL` | `info` | Fastify 日志级别 |
 
-`DISCORD_WEBHOOK_URL` 只在数据库中尚无配置时作为初始值；之后以 UI 保存的设置为准。
+`DISCORD_WEBHOOK_URL`、`PUSHPLUS_TOKEN` 和 `NOTIFICATION_CHANNEL` 只在数据库中尚无配置时作为初始值；之后以 UI 保存的设置为准。
 
 ### 设置页
 
-- Discord Webhook 与测试消息
+- 通知渠道选择：Discord / 微信 PushPlus
+- Discord Webhook、PushPlus Token 与测试消息
+- PushPlus 群组编码（topic，可选）
 - HTTP 代理与 Discord 复用开关
 - OKX 连通性测试
 - 事件保留天数
@@ -303,6 +313,26 @@ flowchart LR
 - `1m` K 线缓存 7 天，其他周期至少 7 天。
 - 删除规则为归档，不物理删除历史事件。
 - 备份：停止服务后复制 `data/`；恢复时放回后启动。
+
+## 通知渠道
+
+当前版本同一时间只向一个渠道发送，可在设置页随时切换；每条事件会保存触发时的渠道，切换不会把已排队事件改投到另一个渠道。
+
+### Discord
+
+1. 在 Discord 频道设置中创建 Webhook。
+2. 设置 → 通知渠道选择 Discord，粘贴 Webhook URL 并保存。
+3. 点击“发送测试消息”。
+
+Webhook 只接受 Discord 官方 HTTPS 域名，保存后只显示掩码。
+
+### 微信 PushPlus
+
+1. 打开 [PushPlus](https://www.pushplus.plus/) 并使用微信扫码登录，复制 Token。
+2. 设置 → 通知渠道选择“微信 PushPlus”，填写 Token；如果使用群组推送，再填写 topic。
+3. 保存后点击“发送测试消息”，确认微信收到消息。
+
+PushPlus 使用固定官方端点 `https://www.pushplus.plus/send/`、`txt` 模板和 `channel=wechat`。如果配置了 HTTP 代理，PushPlus 请求会复用该代理。Token 不会出现在 API、日志或诊断中；消息内容由事件快照生成，不包含管理凭据。网络错误、429 和 5xx 会进入重试队列，业务错误会标记为永久失败。PushPlus 的同步 `code=200` 表示请求已受理，最终微信送达以 PushPlus 流水号/微信为准；应用会保存该流水号，并将其记为 `sent`。
 
 ## API
 
@@ -328,6 +358,7 @@ flowchart LR
 | GET/PUT | `/api/settings` | 配置 |
 | POST | `/api/settings/test-okx` | OKX 连通性 |
 | POST | `/api/settings/test-discord` | Discord 测试 |
+| POST | `/api/settings/test-pushplus` | PushPlus 测试 |
 | GET | `/api/diagnostics` | 诊断 |
 | GET | `/api/stream` | SSE 刷新流 |
 
@@ -344,11 +375,11 @@ flowchart LR
 ### 目录
 
 ```text
-src/server/       行情、指标、规则引擎、API、Discord 投递
+src/server/       行情、指标、规则引擎、API、Discord/PushPlus 投递
 src/web/          React UI
 src/shared/       前后端共享类型、指标目录
 tests/unit/       指标/规则/引擎/试跑/前端工具与组件测试
-tests/integration/ API、OKX、Discord、行情服务、安全
+tests/integration/ API、OKX、Discord、PushPlus、行情服务、安全
 tests/e2e/        Playwright 端到端
 docs/             设计、API、截图
 docker/           容器入口脚本
@@ -358,7 +389,7 @@ docker/           容器入口脚本
 
 - 保持规则试跑与线上评估共用 `src/server/rules/evaluator.ts`。
 - 时间统一使用毫秒时间戳；显示时明确时区。
-- 不在日志、错误、API 响应中输出 Webhook 或代理凭据。
+- 不在日志、错误、API 响应中输出 Webhook、PushPlus Token 或代理凭据。
 - 修改规则语义时，同步更新设计文档、试跑和测试。
 - 新增指标需同时提供参数校验、目录元数据、前端参数控件和公式测试。
 
@@ -378,10 +409,10 @@ npm run smoke          # 对已运行的实例做无副作用探活
 
 当前版本包含：
 
-- **98** 个单元/集成测试（19 个文件）
-- **6** 个浏览器 E2E 场景（含手机 / 平板 / 1024px 断点）
+- **105** 个单元/集成测试（20 个文件）
+- **7** 个浏览器 E2E 场景（含 PushPlus 配置和手机 / 平板 / 1024px 断点）
 - 加速 3 天行情回放（864 根 5m K 线）
-- OKX REST/WS 模拟服务、断线重连、Discord 重试、SSE、安全静态资源、Docker 验收
+- OKX REST/WS 模拟服务、断线重连、Discord / PushPlus 投递与重试、SSE、安全静态资源、Docker 验收
 
 ```bash
 npm test
@@ -420,24 +451,24 @@ services:
 
 ### 代理
 
-在设置页填写 HTTP 代理，例如 `http://127.0.0.1:7890`。REST 和 WebSocket 同时使用；Discord 可选择是否复用。保存后行情会自动重建并重新基线。
+在设置页填写 HTTP 代理，例如 `http://127.0.0.1:7890`。REST、WebSocket 和 PushPlus 会使用该代理；Discord 可单独选择是否复用。保存后行情会自动重建并重新基线。
 
 ### 故障排查
 
 1. `docker compose logs -f market-sentinel` 查看启动/退出错误。
 2. 总览页看行情连接、数据时间和 pair 健康度。
-3. 设置页看 OKX/Discord 测试结果、投递队列和最近错误。
+3. 设置页看 OKX、Discord / PushPlus 测试结果、投递队列和最近错误。
 4. 规则显示“预热中”说明尚未完成基线；等待下一根 K 线或检查数据。
-5. 没有通知时确认：Webhook 已配置、规则已启用、条件刚发生边沿、未处于冷却、非旧数据补发。
+5. 没有通知时确认：当前通知渠道已配置、规则已启用、条件刚发生边沿、未处于冷却、非旧数据补发。
 
 ## 安全
 
 - 默认只绑定 loopback；仅在可信局域网设置 `BIND_HOST=0.0.0.0`，不要将 `8787` 暴露到公网。应用没有登录认证，局域网内任何可达主机都能修改规则和设置。
 - 不请求 OKX API Key；只访问公共行情。
-- Webhook/代理凭据保存在本地 SQLite，依赖本机账户和磁盘权限。
-- Webhook 仅接受 Discord 官方 HTTPS Webhook 域名。
+- Webhook / PushPlus Token / 代理凭据保存在本地 SQLite，依赖本机账户和磁盘权限。
+- Discord Webhook 仅接受官方 HTTPS 域名；PushPlus 使用固定官方 HTTPS 端点。
 - 写请求校验 `Origin`/`Host`；跨站表单无法直接调用。
-- Discord 消息禁用 mentions。
+- Discord 消息禁用 mentions；PushPlus 使用纯文本模板。
 - 安全静态文件服务：无目录列表、无点文件、无 web root 外读取；设置 CSP 等响应头。
 - 已知漏洞披露方式见 [SECURITY.md](SECURITY.md)。
 
@@ -447,7 +478,7 @@ services:
 .
 ├── src/
 │   ├── server/
-│   │   ├── alerts/       Discord payload、投递 worker
+│   │   ├── alerts/       Discord / PushPlus payload、投递 worker
 │   │   ├── api/          Fastify 路由
 │   │   ├── market/       OKX REST/WS、行情服务、数据质量
 │   │   ├── rules/        schema、evaluator、engine、summary
@@ -475,7 +506,7 @@ services:
 ## 路线图
 
 - [ ] 多 Webhook / 按规则路由到不同频道
-- [ ] Telegram / 邮件等更多通知通道
+- [ ] 同时向多个通知渠道发送
 - [ ] 规则版本历史与 diff
 - [ ] 序列条件（A 后 N 根内 B）
 - [ ] 更多交易所与现货/合约统一抽象
@@ -516,7 +547,7 @@ npm test
 
 ### 为什么条件满足但没有收到通知？
 
-按边沿触发设计，持续满足不会重复提醒；触发还受冷却、Webhook 配置、数据新鲜度和“迟到信号抑制”影响。先看事件页和设置页诊断。
+按边沿触发设计，持续满足不会重复提醒；触发还受冷却、当前通知渠道配置、数据新鲜度和“迟到信号抑制”影响。先看事件页和设置页诊断。
 
 ### 支持自动交易吗？
 
@@ -524,7 +555,7 @@ npm test
 
 ### 能多人使用吗？
 
-当前是单用户本地应用，没有账号体系。可以在可信局域网通过 `BIND_HOST=0.0.0.0` 访问，但任何能访问端口的人都能修改设置/Webhook；公网访问必须使用 VPN 或带认证的反向代理。
+当前是单用户本地应用，没有账号体系。可以在可信局域网通过 `BIND_HOST=0.0.0.0` 访问，但任何能访问端口的人都能修改设置、Webhook / PushPlus 配置；公网访问必须使用 VPN 或带认证的反向代理。
 
 ### 升级会丢数据吗？
 
@@ -533,11 +564,11 @@ npm test
 ## 限制与免责声明
 
 - 单机运行；电脑睡眠、Docker 停止或进程退出时不监控。
-- 单一 OKX 数据源；单一 Discord Webhook。
+- 单一 OKX 数据源；单一通知渠道（Discord 或 PushPlus）。
 - 规则组合是 AND/OR 同时成立，不是序列规则。
 - 盘中触发可能重绘；建议默认使用收盘确认。
 - 规则试跑不是盈亏回测，不构成策略有效性的证明。
-- Discord Webhook 不支持端到端幂等，网络超时场景存在极小概率重复发送；消息包含事件 ID 便于核对。
+- Discord / PushPlus 网络超时场景存在极小概率重复发送；消息包含事件 ID 便于核对。
 - 加密货币市场风险极高。本项目不构成投资建议，使用者自行承担风险。
 
 ## 许可证

@@ -9,6 +9,9 @@ export interface AppConfig {
   okxWsUrl: string;
   proxyUrl: string;
   discordWebhookUrl: string;
+  pushplusToken: string;
+  pushplusTopic: string;
+  notificationChannel: string;
   logLevel: string;
   timezone: string;
   version: string;
@@ -43,6 +46,9 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     okxWsUrl: env('OKX_WS_URL', 'wss://ws.okx.com/ws/v5/business'),
     proxyUrl: env('PROXY_URL'),
     discordWebhookUrl: env('DISCORD_WEBHOOK_URL'),
+    pushplusToken: env('PUSHPLUS_TOKEN'),
+    pushplusTopic: env('PUSHPLUS_TOPIC'),
+    notificationChannel: env('NOTIFICATION_CHANNEL', 'discord'),
     logLevel: env('LOG_LEVEL', 'info'),
     timezone: env('TZ', 'Asia/Shanghai'),
     version: env('APP_VERSION', '1.0.0'),

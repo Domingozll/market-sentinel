@@ -34,6 +34,7 @@ import { ConfirmDialog, ErrorBanner, LoadingBlock, StatusPill } from '../compone
 import { RuleBuilder } from '../components/RuleBuilder';
 import { SymbolPicker } from '../components/SymbolPicker';
 import { DiscordPreview } from '../components/DiscordPreview';
+import { PushplusPreview } from '../components/PushplusPreview';
 import { TrialModal } from '../components/TrialModal';
 
 type EditableDraft = Omit<RuleDraft, 'expression'> & { expression: ConditionGroup; enabled: boolean };
@@ -248,8 +249,9 @@ export function RuleEditorPage() {
       else await api.createRule(toPayload(draft));
       await refresh();
       showToast(draft.enabled ? '规则已保存并启用，正在建立基线。' : '规则已保存为草稿。', 'success');
-      if (!data?.settings.discordConfigured) {
-        showToast('尚未配置 Discord Webhook，触发事件只会记录，不会发送。', 'info');
+      if (!data?.settings.notificationsConfigured) {
+        const channel = data?.settings.notificationChannel === 'pushplus' ? '微信 PushPlus' : 'Discord Webhook';
+        showToast(`尚未配置${channel}，触发事件只会记录，不会发送。`, 'info');
       }
       navigate('/rules');
     } catch (error) {
@@ -287,6 +289,19 @@ export function RuleEditorPage() {
       setTrialError(validationMessages(error).join('；'));
     } finally {
       setTrialLoading(false);
+    }
+  }
+
+  async function testPushplusPreview() {
+    if (!data?.settings.pushplusConfigured) {
+      showToast('请先在设置中配置 PushPlus Token', 'error');
+      return;
+    }
+    try {
+      await api.testPushplus();
+      showToast('PushPlus 测试消息已受理，请在微信确认', 'success');
+    } catch (error) {
+      showToast(validationMessages(error).join('；'), 'error');
     }
   }
 
@@ -407,7 +422,7 @@ export function RuleEditorPage() {
             />
           </div>
           <div className="form-field span-8">
-            <label htmlFor="rule-note">备注（可选，会出现在 Discord 消息中）</label>
+            <label htmlFor="rule-note">备注（可选，会出现在通知消息中）</label>
             <input
               id="rule-note"
               className="input"
@@ -563,15 +578,26 @@ export function RuleEditorPage() {
             <div className="side-note">任一周期数据过期或存在缺口时，整条规则暂停判断，不会用旧值发送信号。</div>
           </section>
 
-          <DiscordPreview
-            name={draft.name}
-            symbols={draft.symbols}
-            triggerMode={draft.triggerMode}
-            cooldownSec={draft.cooldownSec}
-            result={firstSymbolResult}
-            webhookConfigured={Boolean(data?.settings.discordConfigured)}
-            onTest={() => void testDiscordPreview()}
-          />
+          {(data?.settings.notificationChannel ?? 'discord') === 'pushplus' ? (
+            <PushplusPreview
+              name={draft.name}
+              symbols={draft.symbols}
+              triggerMode={draft.triggerMode}
+              result={firstSymbolResult}
+              configured={Boolean(data?.settings.pushplusConfigured)}
+              onTest={() => void testPushplusPreview()}
+            />
+          ) : (
+            <DiscordPreview
+              name={draft.name}
+              symbols={draft.symbols}
+              triggerMode={draft.triggerMode}
+              cooldownSec={draft.cooldownSec}
+              result={firstSymbolResult}
+              webhookConfigured={Boolean(data?.settings.discordConfigured)}
+              onTest={() => void testDiscordPreview()}
+            />
+          )}
         </div>
       </div>
 

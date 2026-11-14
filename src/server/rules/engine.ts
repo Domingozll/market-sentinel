@@ -7,6 +7,7 @@ import {
   type RuleEvaluation,
   type RuleStateStatus,
   type Timeframe,
+  type NotificationChannel,
   MAX_ALERT_GRACE_MS,
 } from '../../shared/types';
 import type { Store } from '../store';
@@ -36,7 +37,10 @@ interface ScheduledEvaluation {
 export interface EngineOptions {
   store: Store;
   market: MarketDataProvider;
-  isWebhookConfigured: () => boolean;
+  /** Backward-compatible alias for older tests/embedders. */
+  isWebhookConfigured?: () => boolean;
+  isNotificationConfigured?: () => boolean;
+  getNotificationChannel?: () => NotificationChannel;
   settleMs?: number;
   tickThrottleMs?: number;
   baselineDelayMs?: number;
@@ -45,7 +49,8 @@ export interface EngineOptions {
 export class RuleEngine extends EventEmitter {
   private store: Store;
   private market: MarketDataProvider;
-  private isWebhookConfigured: () => boolean;
+  private isNotificationConfigured: () => boolean;
+  private getNotificationChannel: () => NotificationChannel;
   private rules = new Map<string, Rule>();
   private ruleSignatures = new Map<string, string>();
   private states = new Map<string, ManagedState>();
@@ -59,7 +64,9 @@ export class RuleEngine extends EventEmitter {
     super();
     this.store = options.store;
     this.market = options.market;
-    this.isWebhookConfigured = options.isWebhookConfigured;
+    this.isNotificationConfigured =
+      options.isNotificationConfigured ?? options.isWebhookConfigured ?? (() => false);
+    this.getNotificationChannel = options.getNotificationChannel ?? (() => 'discord');
     this.settleMs = options.settleMs ?? 2200;
     this.tickThrottleMs = options.tickThrottleMs ?? 300;
     this.baselineDelayMs = options.baselineDelayMs ?? 250;
@@ -463,7 +470,8 @@ export class RuleEngine extends EventEmitter {
     if (evaluation.triggerBarTs === null || evaluation.price === null) return false;
     const triggerAt = rule.triggerMode === 'close' ? (evaluation.triggerBarCloseTs ?? now) : now;
     const eventId = randomUUID();
-    const webhookConfigured = this.isWebhookConfigured();
+    const notificationConfigured = this.isNotificationConfigured();
+    const notificationChannel = this.getNotificationChannel();
     const event = {
       id: eventId,
       ruleId: rule.id,
@@ -485,9 +493,14 @@ export class RuleEngine extends EventEmitter {
             ? true
             : null,
     } as const;
-    const delivery = webhookConfigured
-      ? { status: 'pending' as const, nextAttemptAt: null }
-      : { status: 'skipped' as const, error: '未配置 Discord Webhook', nextAttemptAt: null };
+    const delivery = notificationConfigured
+      ? { status: 'pending' as const, channel: notificationChannel, nextAttemptAt: null }
+      : {
+          status: 'skipped' as const,
+          channel: notificationChannel,
+          error: notificationChannel === 'pushplus' ? '未配置 PushPlus Token' : '未配置 Discord Webhook',
+          nextAttemptAt: null,
+        };
     let inserted = false;
     this.store.transaction(() => {
       const result = this.store.insertEventIfNew(event, delivery);

@@ -140,6 +140,15 @@ export const DELIVERY_TEXT: Record<DeliveryInfo['status'], string> = {
   skipped: '未通知',
 };
 
+export function deliveryText(
+  delivery: Pick<DeliveryInfo, 'status' | 'channel'> | null | undefined,
+  empty = '—',
+): string {
+  if (!delivery) return empty;
+  if (delivery.channel === 'pushplus' && delivery.status === 'sent') return '已受理';
+  return DELIVERY_TEXT[delivery.status];
+}
+
 export function conditionLabel(condition: Condition): string {
   const left = seriesDisplay(condition.left.series, condition.left.params);
   const right = condition.right.type === 'series'

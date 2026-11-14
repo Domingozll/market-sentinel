@@ -11,12 +11,13 @@ import {
 import { exchangeDayStartUtc8, type AppConfig } from '../config';
 import type { Store } from '../store';
 import type { SettingsService } from '../settings';
-import { validateDiscordWebhook } from '../settings';
+import { validateDiscordWebhook, validatePushplusToken } from '../settings';
 import { validateProxyUrl } from '../network';
 import type { AppMarket } from '../market/provider';
 import type { RuleEngine } from '../rules/engine';
 import type { DeliveryWorker } from '../alerts/worker';
 import type { DiscordClient } from '../alerts/discord';
+import type { PushplusClient } from '../alerts/pushplus';
 import { parseRuleInput } from '../rules/schema';
 import { ruleSummary } from '../rules/summary';
 import { toRuleView } from '../rules/service';
@@ -30,6 +31,7 @@ export interface ApiServices {
   engine: RuleEngine;
   worker: DeliveryWorker;
   discord: DiscordClient;
+  pushplus: PushplusClient;
   bus: EventEmitter;
 }
 
@@ -112,6 +114,8 @@ function buildStatus(services: ApiServices) {
     wsConnected: services.market.isWsConnected(),
     wsState: services.market.getConnectionState(),
     discordConfigured: publicSettings.discordConfigured,
+    notificationChannel: publicSettings.notificationChannel,
+    notificationsConfigured: publicSettings.notificationsConfigured,
     proxyEnabled: Boolean(publicSettings.proxyUrl),
     version: services.config.version,
     startedAt: services.market.getStartedAt(),
@@ -119,7 +123,7 @@ function buildStatus(services: ApiServices) {
 }
 
 export async function registerApiRoutes(app: FastifyInstance, services: ApiServices): Promise<void> {
-  const { store, settings, market, engine, worker, discord, bus, config } = services;
+  const { store, settings, market, engine, worker, discord, pushplus, bus, config } = services;
   const sseClients = new Set<() => void>();
   app.addHook('onClose', async () => {
     for (const cleanup of sseClients) cleanup();
@@ -135,6 +139,8 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     wsState: market.getConnectionState(),
     wsConnected: market.isWsConnected(),
     discordConfigured: settings.getPublic().discordConfigured,
+    notificationChannel: settings.getPublic().notificationChannel,
+    notificationsConfigured: settings.getPublic().notificationsConfigured,
   }));
 
   app.get('/api/status', async () => buildStatus(services));
@@ -305,8 +311,13 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     const { id } = request.params as { id: string };
     const event = store.getEvent(id);
     if (!event) return sendError(reply, new HttpError(404, '事件不存在'), 404);
-    if (!settings.getPublic().discordConfigured) {
-      return reply.code(409).send({ error: '请先在设置中配置 Discord Webhook' });
+    const channel = event.delivery?.channel ?? 'discord';
+    if (!settings.isNotificationConfigured(channel)) {
+      return reply.code(409).send({
+        error: channel === 'pushplus'
+          ? '请先在设置中配置 PushPlus Token'
+          : '请先在设置中配置 Discord Webhook',
+      });
     }
     if (!event.delivery || !['dead', 'skipped', 'pending'].includes(event.delivery.status)) {
       return reply.code(409).send({ error: '该事件当前不能重试' });
@@ -356,7 +367,7 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         request.log.warn({ err: error }, 'failed to restart market after proxy change');
       });
     }
-    if (result.webhookChanged) worker.wake();
+    if (result.webhookChanged || result.notificationChanged) worker.wake();
     return { settings: result.publicSettings };
   });
 
@@ -375,6 +386,27 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     } catch (error) {
       return reply.code(502).send({ ok: false, error: safeError(error) });
     }
+  });
+
+  app.post('/api/settings/test-pushplus', async (request, reply) => {
+    const raw = bodyObject(request.body ?? {});
+    let token: string;
+    if (typeof raw.pushplusToken === 'string' && raw.pushplusToken.trim()) {
+      const normalized = raw.pushplusToken.trim();
+      const invalid = validatePushplusToken(normalized);
+      if (invalid) return reply.code(400).send({ error: invalid });
+      token = normalized;
+    } else {
+      token = settings.getPushplusToken();
+    }
+    if (!token) return reply.code(400).send({ error: '请先填写 PushPlus Token' });
+    const topic = typeof raw.pushplusTopic === 'string' ? raw.pushplusTopic.trim() : settings.getPushplusTopic();
+    if (topic.length > 64 || /[\r\n]/.test(topic)) {
+      return reply.code(400).send({ error: 'PushPlus 群组编码不能超过 64 个字符且不能包含换行' });
+    }
+    const result = await pushplus.sendTest(token, topic);
+    if (!result.ok) return reply.code(502).send({ error: result.error });
+    return { ok: true, httpStatus: result.httpStatus, messageId: result.messageId };
   });
 
   app.post('/api/settings/test-discord', async (request, reply) => {

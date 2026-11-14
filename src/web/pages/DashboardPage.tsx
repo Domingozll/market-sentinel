@@ -18,7 +18,7 @@ import { useAppData, useToast } from '../context';
 import {
   aggregateTone,
   deliveryTone,
-  DELIVERY_TEXT,
+  deliveryText,
   formatCompact,
   formatDateTime,
   formatNumber,
@@ -155,7 +155,7 @@ export function DashboardPage() {
   }
 
   const stats = data.stats;
-  const showOnboarding = data.rules.length === 0 || !data.settings.discordConfigured;
+  const showOnboarding = data.rules.length === 0 || !data.settings.notificationsConfigured;
   const deliveryRate = stats.deliveryTotal > 0 ? Math.round((stats.deliverySuccess / stats.deliveryTotal) * 100) : null;
 
   return (
@@ -186,14 +186,14 @@ export function DashboardPage() {
             <div>
               <div className="onboarding-title">完成 3 步即可开始监控</div>
               <div className="onboarding-text">
-                行情连接、Discord 通知和第一条规则互相独立；未配置 Webhook 时事件仍会记录。
+                行情连接、通知渠道和第一条规则互相独立；未配置通知时事件仍会记录。
               </div>
               <div className="onboarding-steps" style={{ marginTop: 8 }}>
                 <span className={`onboard-step${data.marketPairs.length ? ' done' : ''}`}>
                   {data.marketPairs.length ? <Check size={10} /> : <span className="warn-dot" />} 行情连接
                 </span>
-                <span className={`onboard-step${data.settings.discordConfigured ? ' done' : ''}`}>
-                  {data.settings.discordConfigured ? <Check size={10} /> : <span className="warn-dot" />} 配置 Discord
+                <span className={`onboard-step${data.settings.notificationsConfigured ? ' done' : ''}`}>
+                  {data.settings.notificationsConfigured ? <Check size={10} /> : <span className="warn-dot" />} 配置通知
                 </span>
                 <span className={`onboard-step${data.rules.length ? ' done' : ''}`}>
                   {data.rules.length ? <Check size={10} /> : <span className="warn-dot" />} 创建规则
@@ -202,9 +202,9 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="onboarding-actions">
-            {!data.settings.discordConfigured ? (
+            {!data.settings.notificationsConfigured ? (
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/settings')}>
-                <Settings2 size={12} /> 配置 Discord
+                <Settings2 size={12} /> 配置通知
               </button>
             ) : null}
             <button type="button" className="btn btn-primary btn-sm" onClick={() => navigate('/rules/new')}>
@@ -301,7 +301,7 @@ export function DashboardPage() {
                   </div>
                 </div>
                 <div className="feed-right">
-                  <StatusPill tone={deliveryTone(event.delivery?.status)} noDot>{DELIVERY_TEXT[event.delivery?.status ?? 'skipped']}</StatusPill>
+                  <StatusPill tone={deliveryTone(event.delivery?.status)} noDot>{deliveryText(event.delivery, '未通知')}</StatusPill>
                   <span className="feed-time">{formatTime(event.triggerAt)}</span>
                 </div>
               </div>

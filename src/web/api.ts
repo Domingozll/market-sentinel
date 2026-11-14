@@ -104,6 +104,8 @@ export interface HealthResponse {
   wsState: string;
   wsConnected: boolean;
   discordConfigured: boolean;
+  notificationChannel: 'discord' | 'pushplus';
+  notificationsConfigured: boolean;
 }
 
 export const api = {
@@ -160,6 +162,14 @@ export const api = {
     request<{ ok: true; latencyMs: number; serverNow: number }>('/api/settings/test-okx', {
       method: 'POST',
       body: JSON.stringify(proxyUrl !== undefined ? { proxyUrl } : {}),
+    }),
+  testPushplus: (pushplusToken?: string, pushplusTopic?: string) =>
+    request<{ ok: true; httpStatus: number; messageId: string | null }>('/api/settings/test-pushplus', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...(pushplusToken ? { pushplusToken } : {}),
+        ...(pushplusTopic ? { pushplusTopic } : {}),
+      }),
     }),
   testDiscord: (webhookUrl?: string) =>
     request<{ ok: true; httpStatus: number; messageId: string | null }>('/api/settings/test-discord', {

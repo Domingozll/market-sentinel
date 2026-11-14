@@ -31,13 +31,15 @@ Market Sentinel 的 HTTP API 与 Web UI 使用同一套 Fastify 路由。默认�
   "exchangeNow": 1794212435407,
   "wsState": "idle",
   "wsConnected": false,
-  "discordConfigured": false
+  "discordConfigured": false,
+  "notificationChannel": "discord",
+  "notificationsConfigured": false
 }
 ```
 
 ### `GET /api/status`
 
-当前运行状态、OKX 连接状态、Discord 配置状态、版本等。
+当前运行状态、OKX 连接状态、通知渠道配置状态、版本等。
 
 ### `GET /api/dashboard`
 
@@ -243,6 +245,7 @@ curl -X POST http://127.0.0.1:8787/api/rules \
       "conditions": [],
       "delivery": {
         "status": "sent",
+        "channel": "discord",
         "attempts": 1,
         "externalMessageId": "…"
       }
@@ -254,11 +257,11 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 ### `GET /api/events/:id`
 
-返回事件快照、规则版本、条件、投递信息。
+返回事件快照、规则版本、条件、投递信息。`delivery.channel` 为 `discord` 或 `pushplus`；`delivery.status = sent` 对 PushPlus 表示请求已被 PushPlus 受理，最终微信送达以流水号/微信为准。
 
 ### `POST /api/events/:id/retry`
 
-在已配置 Webhook 时，将 `dead` / `skipped` / `pending` 投递重置为待发送并唤醒 worker。
+在事件保存的渠道已配置时，将 `dead` / `skipped` / `pending` 投递重置为待发送并唤醒 worker。Discord 事件只会重试 Discord，PushPlus 事件只会重试 PushPlus。
 
 ```json
 { "event": { "delivery": { "status": "pending" } } }
@@ -288,13 +291,18 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 ### `GET /api/settings`
 
-返回公开设置；Webhook 只返回掩码。
+返回公开设置；Webhook 和 PushPlus Token 只返回掩码。
 
 ```json
 {
   "settings": {
     "discordConfigured": true,
     "discordWebhookMasked": "https://discord.com/api/webhooks/123456…/…abcd",
+    "notificationChannel": "pushplus",
+    "notificationsConfigured": true,
+    "pushplusConfigured": true,
+    "pushplusTokenMasked": "••••••••abcd",
+    "pushplusTopic": "",
     "proxyUrl": "http://127.0.0.1:7890",
     "useProxyForDiscord": true,
     "defaultCooldownSec": 300,
@@ -312,7 +320,10 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 ```json
 {
+  "notificationChannel": "pushplus",
   "discordWebhookUrl": "https://discord.com/api/webhooks/…",
+  "pushplusToken": "32-character-pushplus-token",
+  "pushplusTopic": "optional-topic",
   "proxyUrl": "http://127.0.0.1:7890",
   "useProxyForDiscord": true,
   "defaultCooldownSec": 300,
@@ -320,7 +331,9 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 }
 ```
 
-- 传 `discordWebhookUrl: null` 清除 Webhook。
+- `notificationChannel` 只能是 `discord` 或 `pushplus`；同一时间只使用一个渠道。
+- 传 `discordWebhookUrl: null` 清除 Webhook；传 `pushplusToken: null` 清除 PushPlus Token。
+- `pushplusToken` 为 8–128 位字母、数字、下划线或连字符；`pushplusTopic` 最多 64 字符。
 - 代理由服务端校验为 `http://` / `https://` URL。
 - 修改代理会重建行情连接并重建基线。
 
@@ -339,6 +352,17 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 ```
 
 省略 `webhookUrl` 时使用已保存的 Webhook。返回发送结果，不写事件。
+
+### `POST /api/settings/test-pushplus`
+
+```json
+{
+  "pushplusToken": "32-character-pushplus-token",
+  "pushplusTopic": "optional-topic"
+}
+```
+
+省略 Token / topic 时使用已保存的设置。成功返回 `{ ok: true, httpStatus, messageId }`；Token 无效返回 400，PushPlus 发送失败返回 502。不会写事件记录，也不会返回 Token。HTTP 200 / `code=200` 仅表示 PushPlus 已受理，最终微信送达以流水号/微信为准。
 
 ## SSE
 
@@ -378,6 +402,6 @@ data: {"type":"rules","at":1794212435396}
 
 - 写请求会检查 `Origin` 与 `Host`；跨站写请求被拒绝。
 - 官方前端使用同源请求，不需要额外 Token。
-- Webhook/代理凭据不会出现在响应中。
+- Webhook / PushPlus Token / 代理凭据不会出现在响应中。
 - 不要把 API 直接暴露到公网；如需远程访问，请使用 VPN 或带认证的反向代理。
 - 局域网模式（`BIND_HOST=0.0.0.0`）仍然没有认证；任何可达客户端都可以修改设置。

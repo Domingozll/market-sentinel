@@ -23,6 +23,14 @@ export const TRIGGER_MODE_LABEL: Record<TriggerMode, string> = {
   intrabar: '盘中触发',
 };
 
+
+export const NOTIFICATION_CHANNELS = ['discord', 'pushplus'] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
+export const NOTIFICATION_CHANNEL_LABEL: Record<NotificationChannel, string> = {
+  discord: 'Discord',
+  pushplus: '微信 PushPlus',
+};
+
 export const COMPARATORS = ['gt', 'gte', 'lt', 'lte'] as const;
 export type Comparator = (typeof COMPARATORS)[number];
 export const COMPARATOR_LABEL: Record<Comparator, string> = {
@@ -261,6 +269,7 @@ export interface RuleView extends Rule {
 
 export interface DeliveryInfo {
   status: 'pending' | 'sending' | 'sent' | 'dead' | 'skipped';
+  channel: NotificationChannel;
   attempts: number;
   lastHttpStatus: number | null;
   lastError: string | null;
@@ -313,6 +322,8 @@ export interface AppStatus {
   wsConnected: boolean;
   wsState: string;
   discordConfigured: boolean;
+  notificationChannel: NotificationChannel;
+  notificationsConfigured: boolean;
   proxyEnabled: boolean;
   version: string;
   startedAt: number;
@@ -322,6 +333,11 @@ export interface AppStatus {
 export interface PublicSettings {
   discordConfigured: boolean;
   discordWebhookMasked: string;
+  notificationChannel: NotificationChannel;
+  notificationsConfigured: boolean;
+  pushplusConfigured: boolean;
+  pushplusTokenMasked: string;
+  pushplusTopic: string;
   proxyUrl: string;
   useProxyForDiscord: boolean;
   defaultCooldownSec: number;

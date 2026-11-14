@@ -164,6 +164,7 @@
 
   /* Settings */
   .settings-columns{grid-template-columns:1fr;gap:12px}
+  .channel-grid{grid-template-columns:1fr}
   .settings-stack{gap:12px}
   .settings-block-head{padding:13px 13px 11px;flex-wrap:wrap;gap:8px}
   .settings-block-body{padding:12px 13px 14px}

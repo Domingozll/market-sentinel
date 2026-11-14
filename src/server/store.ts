@@ -6,6 +6,7 @@ import {
   type Candle,
   type ConditionEvaluation,
   type DeliveryInfo,
+  type NotificationChannel,
   type EventView,
   type ExpressionNode,
   type Rule,
@@ -60,6 +61,7 @@ interface EventJoinRow {
   close_confirmed: number | null;
   created_at: number;
   delivery_status: string | null;
+  delivery_channel: string | null;
   delivery_attempts: number | null;
   delivery_http_status: number | null;
   delivery_error: string | null;
@@ -87,6 +89,7 @@ export interface EventInsert {
 
 export interface DeliveryInsert {
   status: DeliveryInfo['status'];
+  channel?: NotificationChannel;
   error?: string | null;
   nextAttemptAt?: number | null;
 }
@@ -159,6 +162,7 @@ CREATE INDEX IF NOT EXISTS idx_events_rule ON events(rule_id, trigger_at DESC);
 
 CREATE TABLE IF NOT EXISTS deliveries (
   event_id TEXT PRIMARY KEY,
+  channel TEXT NOT NULL DEFAULT 'discord',
   status TEXT NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 0,
   next_attempt_at INTEGER,
@@ -234,6 +238,7 @@ function mapDelivery(row: EventJoinRow): DeliveryInfo | null {
   if (!row.delivery_status) return null;
   return {
     status: row.delivery_status as DeliveryInfo['status'],
+    channel: (row.delivery_channel as NotificationChannel | null) ?? 'discord',
     attempts: row.delivery_attempts ?? 0,
     lastHttpStatus: row.delivery_http_status ?? null,
     lastError: row.delivery_error ?? null,
@@ -274,10 +279,18 @@ export class Store {
     this.db = new DatabaseSync(this.dbPath);
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');
     this.db.exec(SCHEMA);
+    this.ensureDeliveryChannelColumn();
     try {
       fs.chmodSync(this.dbPath, 0o600);
     } catch {
       // Best effort; the data directory is still restricted.
+    }
+  }
+
+  private ensureDeliveryChannelColumn(): void {
+    const columns = this.db.prepare('PRAGMA table_info(deliveries)').all() as { name: string }[];
+    if (!columns.some((column) => column.name === 'channel')) {
+      this.db.exec("ALTER TABLE deliveries ADD COLUMN channel TEXT NOT NULL DEFAULT 'discord'");
     }
   }
 
@@ -486,10 +499,10 @@ export class Store {
     if (result.changes === 0) return { inserted: false, eventId: id };
     this.db
       .prepare(
-        `INSERT INTO deliveries (event_id, status, attempts, next_attempt_at, last_error, created_at, updated_at)
-         VALUES (?, ?, 0, ?, ?, ?, ?)`,
+        `INSERT INTO deliveries (event_id, channel, status, attempts, next_attempt_at, last_error, created_at, updated_at)
+         VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
       )
-      .run(id, delivery.status, delivery.nextAttemptAt ?? null, delivery.error ?? null, now, now);
+      .run(id, delivery.channel ?? 'discord', delivery.status, delivery.nextAttemptAt ?? null, delivery.error ?? null, now, now);
     return { inserted: true, eventId: id };
   }
 
@@ -500,7 +513,7 @@ export class Store {
   }
 
   private eventSelect(): string {
-    return `SELECT e.*, d.status AS delivery_status, d.attempts AS delivery_attempts,
+    return `SELECT e.*, d.status AS delivery_status, d.channel AS delivery_channel, d.attempts AS delivery_attempts,
       d.last_http_status AS delivery_http_status, d.last_error AS delivery_error,
       d.external_message_id AS delivery_external_id, d.next_attempt_at AS delivery_next_attempt_at,
       d.updated_at AS delivery_updated_at
@@ -610,6 +623,7 @@ export class Store {
     const row = this.db.prepare('SELECT * FROM deliveries WHERE event_id=?').get(eventId) as unknown as
       | {
           event_id: string;
+          channel: string;
           status: string;
           attempts: number;
           next_attempt_at: number | null;
@@ -622,6 +636,7 @@ export class Store {
     if (!row) return null;
     return {
       status: row.status as DeliveryInfo['status'],
+      channel: row.channel as NotificationChannel,
       attempts: row.attempts,
       lastHttpStatus: row.last_http_status,
       lastError: row.last_error,

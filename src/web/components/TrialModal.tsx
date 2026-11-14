@@ -55,7 +55,7 @@ export function TrialModal({
     <Modal
       open={open}
       title="规则试跑"
-      subtitle="使用历史已收盘 K 线模拟规则触发；不计算盈亏，也不会发送 Discord 消息。"
+      subtitle="使用历史已收盘 K 线模拟规则触发；不计算盈亏，也不会发送通知消息。"
       onClose={onClose}
       wide
       footer={
