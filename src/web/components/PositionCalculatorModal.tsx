@@ -16,7 +16,7 @@ import { Modal } from './ui';
 const DEFAULT_CONFIG: PositionCalculatorConfig = {
   direction: 'long',
   capital: 1_000,
-  leverage: 5,
+  leverage: 1,
   feeRatePct: 0.05,
   slippagePct: 0.02,
   target: { mode: 'none' },
@@ -170,6 +170,7 @@ export function PositionCalculatorModal({
           </label>
           <label className="form-field">杠杆倍数
             <input className="input" type="number" min="1" max="125" step="1" value={config.leverage} onChange={(event) => updateConfig({ leverage: Number(event.target.value) })} />
+            <span className="form-hint">默认 1x；杠杆越高，止损前被强平的距离越近</span>
           </label>
           <label className="form-field">手续费（%/单边）
             <input className="input" type="number" min="0" max="10" step="0.01" value={config.feeRatePct} onChange={(event) => updateConfig({ feeRatePct: Number(event.target.value) })} />
@@ -240,7 +241,7 @@ export function PositionCalculatorModal({
             )}
 
             <div className="position-formula">
-              公式：仓位数量 = 本金 × 杠杆 ÷ 开仓价；净收益 = 方向 × (平仓价 − 开仓价) × 数量 − 开仓/平仓双边手续费。开仓与平仓均计入配置滑点；同一根 K 线同时碰到止盈止损按止损优先；跳空按开盘价成交；未设置止盈止损时按回放区间最后一根收盘价估算；估算强平忽略维持保证金与资金费率，手续费按配置单边费率计。批量模式按信号时间顺序复利，重叠信号跳过。
+              公式：仓位数量 = 本金 × 杠杆 ÷ 开仓价；净收益 = 方向 × (平仓价 − 开仓价) × 数量 − 开仓/平仓双边手续费。开仓与平仓均计入配置滑点；同一根 K 线同时碰到止盈止损按止损优先；跳空按开盘价成交；未设置止盈止损时按回放区间最后一根收盘价估算；估算强平忽略维持保证金与资金费率，手续费按配置单边费率计。批量模式按信号时间顺序对全部选中信号逐笔复利；存在重叠持仓时属于理论顺序收益，不模拟同时占用保证金。
             </div>
           </>
         ) : !loading && !error ? <div className="empty-table">等待计算…</div> : null}

@@ -519,6 +519,7 @@ test.describe.serial('Market Sentinel system flow', () => {
     await page.getByTestId('replay-calc-selected').click();
     await expect(page.locator('.modal-card').getByText(/批量复利计算/)).toBeVisible();
     await expect(page.locator('.modal-card').getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.modal-card .position-trade-row')).toHaveCount(2);
   });
 
   test('runs a custom date range asynchronously with an ETA and loads the result', async ({ page }) => {
@@ -538,6 +539,46 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByTestId('replay-result')).toBeVisible();
     await expect(page.locator('.replay-metric-period')).toContainText(end);
     await expect(page.getByTestId('replay-custom-period')).toBeVisible();
+  });
+
+  test('honors a 30-day preset for a 1m rule through an async job', async ({ page, request }) => {
+    const created = await request.post('/api/rules', {
+      data: {
+        name: '1m 长窗口回放',
+        symbols: ['BTC-USDT-SWAP'],
+        triggerMode: 'close',
+        cooldownSec: 0,
+        enabled: false,
+        expression: {
+          kind: 'group',
+          op: 'AND',
+          children: [{
+            kind: 'condition',
+            id: 'long-window',
+            timeframe: '1m',
+            left: { series: 'price.close' },
+            cmp: 'gte',
+            right: { type: 'number', value: 0 },
+          }],
+        },
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+    const ruleId = (await created.json()).rule.id as string;
+
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    await page.locator('.rule-list-grid').filter({ hasText: '1m 长窗口回放' }).first().getByTestId('rule-history').click();
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('replay-window-30').click();
+    await page.getByTestId('run-replay').click();
+    await expect(page.getByTestId('replay-job-progress')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('replay-job-progress')).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByTestId('replay-result')).toBeVisible();
+    await expect(page.locator('.replay-metric-period')).toContainText('30');
+    await expect(page.getByTestId('replay-window-30')).toHaveClass(/btn-primary/);
+    await expect(page.getByTestId('replay-result')).not.toContainText('最多试跑 7 天');
+    // Keep the created rule visible to the test fixture for subsequent state assertions.
+    expect(ruleId).toBeTruthy();
   });
 
   test.afterAll(async () => {

@@ -314,6 +314,7 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         chartTimeframe: chartTimeframe ?? undefined,
         market,
         store,
+        allowExtendedWindow: true,
       });
     } catch (error) {
       if (error instanceof HistoryError) return reply.code(error.statusCode).send({ error: error.message });
@@ -356,6 +357,7 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         market,
         store,
         period,
+        allowExtendedWindow: true,
       });
       const replay = store.saveReplay({
         id: randomUUID(),
@@ -606,6 +608,7 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         chartTimeframe: chartTimeframe ?? undefined,
         market,
         store,
+        allowExtendedWindow: true,
       });
     } catch (error) {
       if (error instanceof HistoryError) return reply.code(error.statusCode).send({ error: error.message });

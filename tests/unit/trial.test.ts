@@ -210,5 +210,15 @@ describe('runTrial', () => {
     });
     expect(result.windowDays).toBe(7);
     expect(result.warning).toContain('最多试跑 7 天');
+
+    const extended = await runTrial({
+      draft: makeDraft({ expression }),
+      symbol,
+      windowDays: 30,
+      market,
+      allowExtendedWindow: true,
+    });
+    expect(extended.windowDays).toBe(30);
+    expect(extended.warning).not.toContain('最多试跑 7 天');
   });
 });

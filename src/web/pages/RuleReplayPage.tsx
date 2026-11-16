@@ -61,6 +61,13 @@ function periodLabel(period: ReplayPeriod): string {
   return `${start} 至 ${end} · 每日 ${clockLabel(period.dailyStartMinute)}–${clockLabel(period.dailyEndMinute)} · ${period.timezone}`;
 }
 
+function maxWindowDaysFor(rule: RuleView, chartTimeframe: Timeframe): number {
+  const frames = new Set<string>([...rule.timeframes, chartTimeframe]);
+  if (frames.has('1m')) return 7;
+  if (frames.has('3m')) return 14;
+  return 30;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -237,6 +244,34 @@ export function RuleReplayPage() {
     }
   }
 
+  async function runWindowReplayAsync(
+    targetRule: RuleView,
+    targetSymbol: string,
+    targetWindow: number,
+    targetChartTimeframe: Timeframe,
+  ) {
+    const seq = ++requestSeq.current;
+    setRunning(true);
+    setRunError(null);
+    setJobElapsed(0);
+    setActiveJob(null);
+    try {
+      const { job } = await api.createReplayAsync(targetRule.id, {
+        symbol: targetSymbol,
+        windowDays: targetWindow,
+        chartTimeframe: targetChartTimeframe,
+      });
+      if (seq !== requestSeq.current) return;
+      await pollReplayJob(job, seq);
+    } catch (error) {
+      if (seq !== requestSeq.current) return;
+      setRunError(error instanceof Error ? error.message : String(error));
+      setActiveJob(null);
+    } finally {
+      if (seq === requestSeq.current) setRunning(false);
+    }
+  }
+
   async function runCustomReplayWith(
     targetRule: RuleView,
     targetSymbol: string,
@@ -380,7 +415,11 @@ export function RuleReplayPage() {
                 await runCustomReplayWith(loaded, fallbackSymbol, fallbackChart, periodToInput(base.period));
               }
             } else if (fallbackSymbol) {
-              await runReplay(loaded, fallbackSymbol, fallbackWindow, fallbackChart);
+              if (fallbackWindow > maxWindowDaysFor(loaded, fallbackChart)) {
+                await runWindowReplayAsync(loaded, fallbackSymbol, fallbackWindow, fallbackChart);
+              } else {
+                await runReplay(loaded, fallbackSymbol, fallbackWindow, fallbackChart);
+              }
             }
           }
         } catch (error) {
@@ -463,8 +502,13 @@ export function RuleReplayPage() {
 
   function runCurrent() {
     if (!rule) return;
-    if (customMode) void runCustomReplay();
-    else void runReplay(rule, symbol, windowDays, chartTimeframe);
+    if (customMode) {
+      void runCustomReplay();
+    } else if (windowDays > maxWindowDaysFor(rule, chartTimeframe)) {
+      void runWindowReplayAsync(rule, symbol, windowDays, chartTimeframe);
+    } else {
+      void runReplay(rule, symbol, windowDays, chartTimeframe);
+    }
   }
 
   function openCalculator(indexes: number[]) {
@@ -587,7 +631,11 @@ export function RuleReplayPage() {
                 disabled={running || !symbol}
               >
                 {running ? <Loader2 size={14} className="spin" /> : <PlayCircle size={14} />}
-                {running ? (activeJob ? '处理中…' : '回放中…') : customMode ? '运行并保存（异步）' : '运行并保存'}
+                {running
+                  ? (activeJob ? '处理中…' : '回放中…')
+                  : customMode || (rule && windowDays > maxWindowDaysFor(rule, chartTimeframe))
+                    ? '运行并保存（异步）'
+                    : '运行并保存'}
               </button>
             </div>
           </div>
@@ -787,6 +835,15 @@ export function RuleReplayPage() {
                   onClick={() => openCalculator(selectedTriggers)}
                 >
                   <Calculator size={13} /> 仓位计算 ({selectedTriggers.length})
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  data-testid="replay-calc-all"
+                  disabled={!result.triggers.length}
+                  onClick={() => openCalculator(result.triggers.map((_, index) => index))}
+                >
+                  全部复利
                 </button>
                 <span className="muted-small">{result.triggers.length} / {result.triggerCount} 条</span>
               </div>

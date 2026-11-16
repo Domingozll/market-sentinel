@@ -166,7 +166,7 @@ describe('position calculator', () => {
     expect(end.grossPnl).toBeCloseTo(50, 8);
   });
 
-  it('compounds equity in signal order and skips overlapping positions', () => {
+  it('compounds all selected signals in time order and warns on overlap', () => {
     const candles = [
       candle(300_000, 100, 115, 95, 108),
       candle(600_000, 100, 115, 95, 108),
@@ -184,12 +184,13 @@ describe('position calculator', () => {
       endTime: 1_500_000,
       config: config(),
     });
-    expect(result.trades).toHaveLength(2);
-    expect(result.skipped).toEqual([{ index: 1, triggerAt: 450_000, reason: 'overlap' }]);
+    expect(result.trades).toHaveLength(3);
+    expect(result.skipped).toEqual([]);
     expect(result.trades[0].exitAt).toBe(600_000);
     expect(result.trades[1].equityBefore).toBeCloseTo(1494.75, 8);
     expect(result.trades[1].netPnl).toBeGreaterThan(0);
-    expect(result.finalEquity).toBeGreaterThan(2_000);
+    expect(result.trades[2].equityBefore).toBeGreaterThan(2_000);
+    expect(result.finalEquity).toBeGreaterThan(3_000);
     expect(result.warnings.join(' ')).toContain('重叠');
   });
 
@@ -229,6 +230,22 @@ describe('position calculator', () => {
       endTime: 900_000,
       config: config({ target: { mode: 'indicator', series: 'bb.upper' } }),
     })).toThrow(PositionCalcError);
+  });
+
+  it('honours a stop at the estimated liquidation boundary instead of reporting liquidation', () => {
+    const result = calculatePositions({
+      triggers: [trigger()],
+      triggerIndexes: [0],
+      candles: [candle(300_000, 100, 101, 79, 80)],
+      timeframeMs: tfMs,
+      endTime: 900_000,
+      config: config({ target: { mode: 'none' }, stop: { mode: 'percent', percent: 20 } }),
+    });
+    const trade = result.trades[0];
+    expect(trade.stopPrice).toBeCloseTo(80, 8);
+    expect(trade.liquidationPrice).toBeCloseTo(80, 8);
+    expect(trade.exitReason).toBe('stop');
+    expect(trade.equityAfter).toBe(0);
   });
 
   it('caps isolated-margin losses at the allocated capital when liquidated', () => {

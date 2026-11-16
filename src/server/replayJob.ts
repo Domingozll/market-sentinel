@@ -93,6 +93,9 @@ export function startReplayJob(options: {
         market,
         store,
         period: params.period,
+        // presets such as 1m/30d and 3m/30d are intentionally executed by the
+        // async job path, which already batches and limits the page count.
+        allowExtendedWindow: true,
       });
       store.markReplayJobProcessing(id, '计算触发与图表');
       const replay = store.saveReplay({

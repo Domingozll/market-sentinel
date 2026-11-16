@@ -78,7 +78,7 @@ export function TrialModal({
         <div className="form-field span-6">
           <span className="form-label">回看窗口</span>
           <div className="row">
-            {[7, 30].map((days) => (
+            {[7, 14, 30].map((days) => (
               <button
                 key={days}
                 type="button"
@@ -88,7 +88,7 @@ export function TrialModal({
                 最近 {days} 天
               </button>
             ))}
-            <span className="form-hint">1m 周期最多 7 天；服务端会自动缩短超限窗口。</span>
+            <span className="form-hint">更长时间会通过本地历史与分批补数加载，可能需要更久；结果会显示实际回看窗口。</span>
           </div>
         </div>
       </div>

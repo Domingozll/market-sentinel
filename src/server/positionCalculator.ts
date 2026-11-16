@@ -177,8 +177,14 @@ function simulateTrade(
 
   // Determine which adverse level is closer. A stop beyond liquidation would
   // never fill: liquidation occurs first.
+  // If the explicit stop is at the same level as the estimated liquidation,
+  // honour the stop order first; this is especially important for common
+  // defaults such as 5x leverage + 20% stop.
+  const levelEpsilon = Math.max(Math.abs(entryPrice), 1) * 1e-9;
   const stopIsCloser = stopPrice !== null && (
-    direction === 'long' ? stopPrice > liquidationPrice : stopPrice < liquidationPrice
+    direction === 'long'
+      ? stopPrice >= liquidationPrice - levelEpsilon
+      : stopPrice <= liquidationPrice + levelEpsilon
   );
 
   for (const candle of future) {
@@ -285,7 +291,8 @@ export function calculatePositions(options: {
     .sort((a, b) => a.trigger.triggerAt - b.trigger.triggerAt || a.index - b.index);
 
   let equity = config.capital;
-  let availableAt = 0;
+  let lastExitAt = 0;
+  let hasOverlap = false;
   const trades: PositionTradeResult[] = [];
   const skipped: PositionSkipped[] = [];
   const warnings: string[] = [];
@@ -295,24 +302,31 @@ export function calculatePositions(options: {
       skipped.push({ index: item.index, triggerAt: item.trigger.triggerAt, reason: 'insufficient-equity' });
       continue;
     }
-    if (item.trigger.triggerAt < availableAt) {
-      skipped.push({ index: item.index, triggerAt: item.trigger.triggerAt, reason: 'overlap' });
-      continue;
-    }
+    if (item.trigger.triggerAt < lastExitAt) hasOverlap = true;
     const trade = simulateTrade(item.trigger, candles, config, options.timeframeMs, options.endTime, equity);
     trade.index = item.index;
     trades.push(trade);
     equity = trade.equityAfter;
-    availableAt = trade.exitAt;
+    lastExitAt = Math.max(lastExitAt, trade.exitAt);
     if (trade.exitReason === 'liquidation') warnings.push(`#${item.index + 1} 触发估算强平，收益按保证金上限截断`);
+    const levelEpsilon = Math.max(Math.abs(trade.entryPrice), 1) * 1e-9;
+    if (trade.stopPrice !== null && (config.direction === 'long'
+      ? trade.stopPrice < trade.liquidationPrice - levelEpsilon
+      : trade.stopPrice > trade.liquidationPrice + levelEpsilon)) {
+      warnings.push(`#${item.index + 1} 止损价已超过估算强平价，实际可能先触发强平；请降低杠杆或缩小止损比例`);
+    }
     if (trade.exitReason === 'no-data') warnings.push(`#${item.index + 1} 之后没有可用 K 线，按开仓价退出`);
   }
 
-  if (skipped.some((item) => item.reason === 'overlap')) {
-    warnings.push('批量复利按信号时间顺序执行；与上一笔持仓重叠的信号已跳过，避免用同一笔保证金重复开仓。');
+  if (hasOverlap) {
+    warnings.push('所选信号存在重叠持仓；批量结果按信号顺序逐笔复利理论计算，未模拟同时占用保证金的组合风险。');
   }
   if (skipped.some((item) => item.reason === 'insufficient-equity')) {
     warnings.push('权益已归零，后续信号不再开仓。');
+  }
+
+  if (config.stop.mode === 'percent' && (config.stop.percent ?? 0) * config.leverage >= 100) {
+    warnings.push('止损比例 × 杠杆 ≥ 100%，单笔价格止损可能亏损全部保证金；请降低杠杆或缩小止损比例');
   }
 
   let runningPeak = config.capital;

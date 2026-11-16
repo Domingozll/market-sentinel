@@ -68,6 +68,8 @@ export async function runTrial(options: {
   now?: number;
   /** Exact date range + optional daily time window for custom replay. */
   period?: ReplayPeriod;
+  /** Replay/trial UIs that batch history may honor >7d/14d windows. */
+  allowExtendedWindow?: boolean;
 }): Promise<TrialResult> {
   const { draft, market } = options;
   const ruleTimeframes = collectTimeframes(draft.expression);
@@ -76,16 +78,17 @@ export async function runTrial(options: {
   const requestedTimeframes = [...new Set<Timeframe>([...ruleTimeframes, chartTimeframe])];
   if (!draft.symbols.includes(options.symbol)) throw new TrialError('试跑品种不在规则范围内');
   const maxDays = maxWindowDays(requestedTimeframes);
+  const allowedMaxDays = options.allowExtendedWindow ? 30 : maxDays;
   const marketNow = options.now ?? market.exchangeNow();
   const period = options.period;
-  const windowStart = period ? period.from : marketNow - clampWindow(options.windowDays, maxDays) * 86_400_000;
+  const windowStart = period ? period.from : marketNow - clampWindow(options.windowDays, allowedMaxDays) * 86_400_000;
   const windowEnd = period ? Math.min(period.to, marketNow) : marketNow;
   if (windowEnd <= windowStart) throw new TrialError('回放结束时间必须晚于开始时间');
   const windowDays = period
     ? Math.max(0.01, Number(((windowEnd - windowStart) / 86_400_000).toFixed(3)))
-    : clampWindow(options.windowDays, maxDays);
+    : clampWindow(options.windowDays, allowedMaxDays);
   const warnings: string[] = [];
-  if (!period && windowDays !== options.windowDays) {
+  if (!period && !options.allowExtendedWindow && windowDays !== options.windowDays) {
     warnings.push(`该周期组合最多试跑 ${maxDays} 天，已自动缩短窗口`);
   }
   if (period) {

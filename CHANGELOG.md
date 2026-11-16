@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rule editor: a separate “save keeping status” action that stays on the editor and preserves whether the rule is enabled or disabled; long rule names truncate cleanly while list action buttons stay on one row.
 - Custom historical replay periods: inclusive date ranges plus daily time windows (with timezone, all-day and overnight support), presets/defaults, and an async job pipeline.
 - Batched OKX history paging (100 bars/request, 130ms request gate) with local SQLite persistence; async jobs expose phase, conservative ETA and reload recovery. Strict custom ranges reject gaps except a late current candle.
-- Position calculator on replay signals: single-point and batch compounding, configurable capital/direction/leverage, price/percent/indicator take-profit and stop-loss, fees, slippage, risk/reward, liquidation estimate and overlap-safe sequencing.
+- Position calculator on replay signals: single-point and batch compounding, configurable capital/direction/leverage, price/percent/indicator take-profit and stop-loss, fees, slippage, risk/reward, liquidation estimate, all-selected sequential compounding and overlap warnings.
 - Chart marker/row selection integration for position calculations, including desktop and mobile layouts.
 
 - Configurable market chart indicators: independently toggle BOLL, volume, KDJ, RSI and MACD, adjust their parameters in the chart panel, and persist the selection in the browser.
@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Long-window replay presets for 1m/3m rules are no longer silently shortened; presets above the convenience limit run through the async batch pipeline, including reload-safe jobs.
+- Position stop-loss at the estimated liquidation boundary now honours the stop first. Batch calculations process every selected signal in time order and warn when positions overlap instead of silently returning one trade.
+- Position calculator warns when `stop percentage × leverage` can consume the full margin, and when a configured stop lies beyond the estimated liquidation price.
 - Mobile event rows now preserve the trigger price, and the event drawer close button has an intentional icon-button style instead of browser-default chrome.
 - The dashboard chart no longer refetches on every SSE tick, which could cancel requests and leave the chart stuck on “loading” when the candles endpoint was slow.
 - Failed background chart refreshes keep the last successful candles instead of clearing the chart.

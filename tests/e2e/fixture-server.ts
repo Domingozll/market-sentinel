@@ -19,6 +19,7 @@ candles[candles.length - 1] = { ...last, low: last.close - 0.01, high: last.clos
 market.seed(symbol, timeframe, candles);
 market.setHistory(symbol, timeframe, makeCandles({ instId: symbol, timeframe, count: 600, endCloseTime: endClose }));
 market.setHistory(symbol, '15m', makeCandles({ instId: symbol, timeframe: '15m', count: 600, endCloseTime: Math.floor(endClose / 900_000) * 900_000 }));
+market.setHistory(symbol, '1m', makeCandles({ instId: symbol, timeframe: '1m', count: 1000, endCloseTime: Math.floor(endClose / 60_000) * 60_000 }));
 
 const sentMessages: unknown[] = [];
 const transport: DiscordTransport = {
