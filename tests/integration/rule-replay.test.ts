@@ -128,6 +128,21 @@ describe('saved rule historical replay', () => {
 
     const listedAgain = await jsonRequest(runtime.runtime, { method: 'GET', url: `/api/rules/${id}/replays` });
     expect(listedAgain.body.replays).toHaveLength(1);
+
+    const chartCandles = await jsonRequest(runtime.runtime, {
+      method: 'GET',
+      url: `/api/replays/${run.body.replay.id}/chart-candles?timeframe=5m`,
+    });
+    expect(chartCandles.statusCode).toBe(200);
+    expect(chartCandles.body.timeframe).toBe('5m');
+    expect(chartCandles.body.candles.length).toBeGreaterThan(0);
+    expect(chartCandles.body.data.source).toMatch(/local|remote/);
+
+    const badTimeframe = await jsonRequest(runtime.runtime, {
+      method: 'GET',
+      url: `/api/replays/${run.body.replay.id}/chart-candles?timeframe=bad`,
+    });
+    expect(badTimeframe.statusCode).toBe(400);
   });
 
   it('rejects invalid symbols/windows and unknown rules', async () => {

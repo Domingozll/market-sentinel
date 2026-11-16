@@ -446,7 +446,11 @@ h1,h2,h3,p{margin-top:0}
 
 /* Historical replay: professional KLineChart workbench */
 .replay-chart-workbench{position:relative;display:flex;flex-direction:column;gap:7px;min-width:0}
-.replay-chart-workbench .chart-toolbar{padding:4px 0 6px;border-top:0}
+.replay-chart-workbench .chart-toolbar{padding:4px 0 6px;border-top:0;align-items:flex-start}
+.replay-chart-workbench .replay-chart-timeframes{flex:1;min-width:0;order:1}
+.replay-chart-workbench .chart-toolbar-actions{order:2;justify-content:flex-end}
+.replay-timeframe-loading{display:inline-flex;align-items:center;gap:4px;color:#9b825d;font-family:var(--mono);font-size:8px;padding:0 4px;white-space:nowrap}
+.replay-chart-timeframes button:disabled{opacity:.45;cursor:wait}
 .replay-chart-toolbar-label{font-family:var(--mono);font-size:8px;color:#668091;letter-spacing:.04em;white-space:nowrap}
 .replay-chart-stage{height:520px;min-height:430px;flex:0 0 auto}
 .replay-chart-workbench .chart-statusbar{padding:1px 1px 0}
@@ -458,7 +462,8 @@ h1,h2,h3,p{margin-top:0}
 @media (max-width:900px){
   .replay-chart-stage{height:430px;min-height:360px}
   .replay-chart-toolbar-label{display:none}
-  .replay-chart-workbench .chart-toolbar-actions{width:100%;justify-content:flex-start}
+  .replay-chart-workbench .chart-toolbar-actions{width:100%;justify-content:flex-start;order:2}
+  .replay-chart-workbench .replay-chart-timeframes{width:100%;order:1}
   .replay-chart-workbench .chart-toolbar-actions .chart-tool{height:27px;font-size:8.5px;padding:0 6px}
   .replay-chart-workbench.focus-mode{padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px))}
   .replay-chart-workbench.focus-mode .chart-statusbar{display:none}
@@ -469,7 +474,7 @@ h1,h2,h3,p{margin-top:0}
 }
 
 /* Replay persistence and chart timeframe controls */
-.replay-control-grid{grid-template-columns:minmax(160px,1fr) 112px minmax(220px,1.15fr) auto}
+.replay-control-grid{grid-template-columns:minmax(180px,1fr) minmax(240px,1.15fr) auto}
 .replay-history-row{display:grid;grid-template-columns:minmax(260px,1.25fr) minmax(0,1fr);gap:12px;align-items:end;margin-top:11px;padding-top:11px;border-top:1px solid rgba(36,54,66,.55)}
 .replay-history-row .form-field{margin:0}
 .replay-history-row select{min-width:0}

@@ -127,18 +127,23 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByTestId('chart-indicator-panel')).toBeVisible();
     await page.getByRole('button', { name: '关闭指标面板' }).click();
 
-    // Switching the chart timeframe runs and saves a new snapshot.
+    // Chart period tabs live inside the KLineChart toolbar. Switching only changes
+    // the chart view; running/saving is still explicit.
+    await expect(page.getByTestId('replay-timeframes')).toBeVisible();
+    await expect(page.getByTestId('replay-chart-timeframe')).toHaveCount(0);
     const runsBeforeTimeframe = replayRuns;
-    await page.getByTestId('replay-chart-timeframe').selectOption('15m');
-    await page.getByTestId('run-replay').click();
+    await page.getByTestId('replay-timeframe-15m').click();
     await expect(page.locator('.replay-chart-card .panel-sub')).toContainText('15m', { timeout: 20_000 });
+    expect(replayRuns).toBe(runsBeforeTimeframe);
+    await page.getByTestId('run-replay').click();
+    await expect(page.getByTestId('replay-history').locator('option')).toHaveCount(3, { timeout: 20_000 });
     expect(replayRuns).toBe(runsBeforeTimeframe + 1);
 
     // Reloading loads the latest saved result instead of running again.
     const runsBeforeReload = replayRuns;
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('replay-chart-timeframe')).toHaveValue('15m');
+    await expect(page.getByTestId('replay-timeframe-15m')).toHaveClass(/active/);
     expect(replayRuns).toBe(runsBeforeReload);
     await expect(page.getByTestId('replay-history').locator('option')).toHaveCount(3);
     await expect(page.getByTestId('replay-chart').locator('canvas').first()).toBeVisible();

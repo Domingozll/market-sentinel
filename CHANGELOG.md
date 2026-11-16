@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - K-line pagination/SSE APIs and chart-only market subscriptions that are merged with rule subscriptions instead of replacing them.
 - Longer candle retention for 1H–1D charts and an external-volume 20k-bar performance benchmark (`npm run chart:perf`).
 - WeChat PushPlus notification channel: selectable Discord/PushPlus channel, masked token storage, optional topic, test message, event-channel persistence and retry routing.
-- Saved-rule historical replay: a dedicated page using the professional KLineChart workspace (24 chart periods, editable indicators, Volume Profile, drawings, screenshot and fullscreen), with prominent signal markers and hover details (time, price, mode, conditions), per-trigger condition snapshots and a scrollable trigger list.
+- Saved-rule historical replay: a dedicated page using the professional KLineChart workspace (24 chart periods selectable inside the K-line toolbar, editable indicators, Volume Profile, drawings, screenshot and fullscreen), with prominent signal markers and hover details (time, price, mode, conditions), per-trigger condition snapshots and a scrollable trigger list.
 - Replay snapshots are persisted in SQLite and reloaded instead of re-running automatically; each explicit run creates a history entry.
 - Local-first replay history: reuse cached candles, incrementally fetch only missing ranges, reject internal gaps, and expose data source/coverage metadata.
 

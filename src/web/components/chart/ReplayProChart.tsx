@@ -23,6 +23,7 @@ import {
   saveWorkspace,
 } from '../../lib/chart/indicatorSettings';
 import {
+  ALL_CHART_TIMEFRAMES,
   toDrawingKey,
   type ChartEventMarker,
   type ChartIndicatorConfig,
@@ -65,6 +66,8 @@ export function ReplayProChart({
   events,
   onEventSelect,
   focusTimestamp,
+  onTimeframeChange,
+  timeframeLoading = false,
 }: {
   symbol: string;
   timeframe: string;
@@ -74,6 +77,8 @@ export function ReplayProChart({
   events: ChartEventMarker[];
   onEventSelect?: (event: ChartEventMarker) => void;
   focusTimestamp?: number | null;
+  onTimeframeChange?: (timeframe: string) => void;
+  timeframeLoading?: boolean;
 }) {
   const { showToast } = useToast();
   const [workspace, setWorkspace] = useState(() => loadWorkspace());
@@ -219,8 +224,22 @@ export function ReplayProChart({
       data-fullscreen={focusMode ? 'true' : 'false'}
     >
       <div className="chart-toolbar replay-chart-toolbar">
-        <div className="replay-chart-toolbar-label">增强图表 · KLineChart</div>
+        <div className="chart-timeframes replay-chart-timeframes" data-testid="replay-timeframes">
+          {ALL_CHART_TIMEFRAMES.map((item) => (
+            <button
+              type="button"
+              key={item}
+              className={item === timeframe ? 'active' : ''}
+              data-testid={`replay-timeframe-${item}`}
+              onClick={() => onTimeframeChange?.(item)}
+              disabled={timeframeLoading}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
         <div className="chart-toolbar-actions">
+          {timeframeLoading ? <span className="replay-timeframe-loading"><span className="chart-live-dot connecting" /> 切换周期…</span> : null}
           <button type="button" className={`chart-tool${panel === 'indicator' ? ' active' : ''}`} data-testid="replay-chart-indicators" onClick={() => setPanel(panel === 'indicator' ? null : 'indicator')}>
             <SlidersHorizontal size={13} /> 指标
           </button>

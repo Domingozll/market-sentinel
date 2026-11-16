@@ -22,7 +22,7 @@ import {
 } from '../lib/format';
 import { ErrorBanner, LoadingBlock, PageHeader } from '../components/ui';
 import { ReplayProChart } from '../components/chart/ReplayProChart';
-import { ALL_CHART_TIMEFRAMES, type ChartEventMarker } from '../lib/chart/types';
+import type { ChartEventMarker } from '../lib/chart/types';
 
 const WINDOWS = [7, 14, 30] as const;
 
@@ -47,6 +47,8 @@ export function RuleReplayPage() {
   const [symbol, setSymbol] = useState('');
   const [windowDays, setWindowDays] = useState(7);
   const [chartTimeframe, setChartTimeframe] = useState<Timeframe>('5m');
+  const [viewCandles, setViewCandles] = useState<Candle[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [result, setResult] = useState<TrialResult | null>(null);
@@ -59,8 +61,26 @@ export function RuleReplayPage() {
   const [savedMeta, setSavedMeta] = useState<{ createdAt: number; ruleVersion: number } | null>(null);
   const requestSeq = useRef(0);
 
+  function candlesFromResult(next: TrialResult): Candle[] {
+    return next.candles.map((candle) => ({
+      instId: next.symbol,
+      timeframe: next.timeframe,
+      openTime: candle.openTime,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+      vol: 0,
+      volCcy: 0,
+      volCcyQuote: candle.volume,
+      confirm: true,
+    }));
+  }
+
   function applyReplay(replay: ReplayRecord) {
     setResult(replay.result);
+    setViewCandles(candlesFromResult(replay.result));
     setSymbol(replay.symbol);
     setWindowDays(replay.windowDays);
     setChartTimeframe(replay.chartTimeframe);
@@ -178,23 +198,6 @@ export function RuleReplayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const chartCandles = useMemo<Candle[]>(
-    () => result?.candles.map((candle) => ({
-      instId: result.symbol,
-      timeframe: result.timeframe,
-      openTime: candle.openTime,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-      volume: candle.volume,
-      vol: 0,
-      volCcy: 0,
-      volCcyQuote: candle.volume,
-      confirm: true,
-    })) ?? [],
-    [result],
-  );
   const replayEvents = useMemo<ChartEventMarker[]>(
     () => result && rule ? result.triggers.map((trigger, index) => ({
       id: `replay-${index}`,
@@ -221,9 +224,20 @@ export function RuleReplayPage() {
     if (result) setStale(true);
   }
 
-  function changeChartTimeframe(next: Timeframe) {
-    setChartTimeframe(next);
-    if (result) setStale(true);
+  async function selectChartTimeframe(next: Timeframe) {
+    if (!result || !selectedReplayId || next === chartTimeframe || chartLoading) return;
+    setChartLoading(true);
+    setRunError(null);
+    try {
+      const data = await api.replayChartCandles(selectedReplayId, next);
+      setChartTimeframe(next);
+      setViewCandles(data.candles);
+      setFocusTimestamp(null);
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChartLoading(false);
+    }
   }
 
   function runCurrent() {
@@ -305,18 +319,6 @@ export function RuleReplayPage() {
               </select>
             </div>
             <div className="form-field">
-              <label htmlFor="replay-chart-timeframe">图表周期</label>
-              <select
-                id="replay-chart-timeframe"
-                className="select"
-                data-testid="replay-chart-timeframe"
-                value={chartTimeframe}
-                onChange={(event) => changeChartTimeframe(event.target.value as Timeframe)}
-              >
-                {ALL_CHART_TIMEFRAMES.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </div>
-            <div className="form-field">
               <span className="form-label">回看窗口</span>
               <div className="replay-window-row">
                 {WINDOWS.map((days) => (
@@ -375,7 +377,7 @@ export function RuleReplayPage() {
             </div>
           </div>
           <div className="muted-small replay-control-note">
-            按已收盘 K 线评估条件，通知位置标注在触发 K 线上。每次“运行并保存”会写入一条历史结果；窗口内最多保留 500 条触发快照；1m / 3m 会自动缩短历史窗口。
+            按已收盘 K 线评估条件，通知位置标注在触发 K 线上。K 线周期标签只切换图表视图，不重新计算信号；点击“运行并保存”时按当前图表周期写入历史结果。窗口内最多保留 500 条触发快照；1m / 3m 会自动缩短历史窗口。
           </div>
         </div>
       </section>
@@ -423,7 +425,7 @@ export function RuleReplayPage() {
               <div>
                 <div className="panel-title">历史 K 线与通知位置</div>
                 <div className="panel-sub">
-                  {result.symbol} · 图表 {result.timeframe} · 规则 {result.signalTimeframe} · 图上标记与下方触发清单一致
+                  {result.symbol} · 图表 {chartTimeframe} · 规则 {result.signalTimeframe} · 图上标记与下方触发清单一致
                 </div>
               </div>
               <span className="replay-chart-badge"><span className="replay-chart-dot" /> 通知位置 {result.triggers.length}</span>
@@ -431,12 +433,14 @@ export function RuleReplayPage() {
             <div className="replay-chart-wrap" data-testid="replay-chart">
               <ReplayProChart
                 symbol={result.symbol}
-                timeframe={result.timeframe}
+                timeframe={chartTimeframe}
                 pricePrecision={2}
                 volumePrecision={0}
-                candles={chartCandles}
+                candles={viewCandles}
                 events={replayEvents}
                 focusTimestamp={focusTimestamp}
+                onTimeframeChange={(next) => void selectChartTimeframe(next as Timeframe)}
+                timeframeLoading={chartLoading}
                 onEventSelect={(event) => {
                   const index = Number(event.id.replace('replay-', ''));
                   if (!Number.isFinite(index)) return;

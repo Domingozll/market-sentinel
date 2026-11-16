@@ -318,6 +318,34 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 返回 `{ replay: ReplayRecord }`，包含保存时的完整结果、规则版本和数据来源。
 
+### `GET /api/replays/:id/chart-candles`
+
+按图表周期加载已保存回放窗口的 K 线视图，不重新评估规则、不修改回放记录。
+
+```text
+GET /api/replays/:id/chart-candles?timeframe=15m
+```
+
+返回：
+
+```json
+{
+  "replayId": "…",
+  "symbol": "BTC-USDT-SWAP",
+  "timeframe": "15m",
+  "candles": [],
+  "data": {
+    "source": "local",
+    "localBars": 900,
+    "fetchedBars": 0,
+    "coverage": 1,
+    "gaps": 0
+  }
+}
+```
+
+图表周期必须属于 `TIMEFRAMES`；行情同样走本地优先和增量补齐。前端在 K 线工具栏内切换周期时调用此接口，仅改变视图；需要保存新周期结果时再调用 `/replays`。
+
 ## 事件
 
 ### `GET /api/events`

@@ -24,7 +24,7 @@ import { parseRuleInput } from '../rules/schema';
 import { ruleSummary } from '../rules/summary';
 import { toRuleView } from '../rules/service';
 import { runTrial, TrialError } from '../trial';
-import { HistoryError } from '../history';
+import { HistoryError, loadLocalFirstHistory } from '../history';
 
 export interface ApiServices {
   config: AppConfig;
@@ -353,6 +353,45 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     const replay = store.getReplay(id);
     if (!replay) return sendError(reply, new HttpError(404, '回放记录不存在'), 404);
     return { replay };
+  });
+
+  app.get('/api/replays/:id/chart-candles', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const replay = store.getReplay(id);
+    if (!replay) return sendError(reply, new HttpError(404, '回放记录不存在'), 404);
+    const q = (request.query ?? {}) as Record<string, unknown>;
+    const timeframe = typeof q.timeframe === 'string' ? q.timeframe : '';
+    if (!TIMEFRAMES.includes(timeframe as Timeframe)) {
+      return reply.code(400).send({ error: 'K 线周期不合法' });
+    }
+    const to = replay.result.data.to + TF_MS[replay.result.timeframe];
+    const from = replay.result.data.to - replay.windowDays * 86_400_000;
+    try {
+      const history = await loadLocalFirstHistory({
+        store,
+        market,
+        instId: replay.symbol,
+        timeframe: timeframe as Timeframe,
+        from,
+        to,
+      });
+      return {
+        replayId: replay.id,
+        symbol: replay.symbol,
+        timeframe,
+        candles: history.candles,
+        data: {
+          source: history.source,
+          localBars: history.localBars,
+          fetchedBars: history.fetchedBars,
+          coverage: history.coverage,
+          gaps: history.gaps,
+        },
+      };
+    } catch (error) {
+      if (error instanceof HistoryError) return reply.code(error.statusCode).send({ error: error.message });
+      return sendError(reply, new HttpError(502, `加载图表周期失败：${safeError(error)}`), 502);
+    }
   });
 
   app.post('/api/rules/validate', async (request, reply) => {

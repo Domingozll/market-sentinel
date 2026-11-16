@@ -5,6 +5,7 @@ import type {
   PublicSettings,
   ReplayRecord,
   ReplaySummary,
+  TrialDataInfo,
   Rule,
   RuleDraft,
   RuleEvaluation,
@@ -170,6 +171,14 @@ export const api = {
   replays: (ruleId: string, limit = 20) =>
     request<{ replays: ReplaySummary[] }>(`/api/rules/${ruleId}/replays?limit=${limit}`),
   replay: (id: string) => request<{ replay: ReplayRecord }>(`/api/replays/${encodeURIComponent(id)}`),
+  replayChartCandles: (id: string, timeframe: string) =>
+    request<{
+      replayId: string;
+      symbol: string;
+      timeframe: string;
+      candles: Candle[];
+      data: { source: TrialDataInfo['source']; localBars: number; fetchedBars: number; coverage: number; gaps: number };
+    }>(`/api/replays/${encodeURIComponent(id)}/chart-candles?timeframe=${encodeURIComponent(timeframe)}`),
   events: (params: Record<string, string | number | undefined> = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
