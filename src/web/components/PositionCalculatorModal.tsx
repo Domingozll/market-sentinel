@@ -110,13 +110,13 @@ function ExitControl({
         {rule.mode === 'percent' ? (
           <div className="position-input-suffix">
             <input className="input" type="number" min="0" step="0.1" placeholder="价格比例" value={rule.percent ?? ''} onChange={(event) => onChange({ ...rule, percent: Number(event.target.value) })} />
-            <span>% 价格</span>
+            <span>%</span>
           </div>
         ) : null}
         {rule.mode === 'roi' ? (
           <div className="position-input-suffix">
             <input className="input" type="number" min="0" step="0.1" placeholder="保证金收益率" value={rule.roiPercent ?? ''} onChange={(event) => onChange({ ...rule, roiPercent: Number(event.target.value) })} />
-            <span>% 净收益率</span>
+            <span>%</span>
           </div>
         ) : null}
         {rule.mode === 'indicator' ? (
@@ -226,11 +226,17 @@ export function PositionCalculatorModal({
             <input className="input" type="number" min="1" max="125" step="1" value={config.leverage} onChange={(event) => updateConfig({ leverage: Number(event.target.value) })} />
             <span className="form-hint">默认 1x；杠杆越高，止损前被强平的距离越近</span>
           </label>
-          <label className="form-field">手续费（%/单边）
-            <input className="input" type="number" min="0" max="10" step="0.01" value={config.feeRatePct} onChange={(event) => updateConfig({ feeRatePct: Number(event.target.value) })} />
+          <label className="form-field">手续费（单边）
+            <div className="position-field-unit">
+              <input className="input" type="number" min="0" max="10" step="0.01" value={config.feeRatePct} onChange={(event) => updateConfig({ feeRatePct: Number(event.target.value) })} />
+              <span>%</span>
+            </div>
           </label>
-          <label className="form-field">滑点（%/单边）
-            <input className="input" type="number" min="0" max="10" step="0.01" value={config.slippagePct} onChange={(event) => updateConfig({ slippagePct: Number(event.target.value) })} />
+          <label className="form-field">滑点（单边）
+            <div className="position-field-unit">
+              <input className="input" type="number" min="0" max="10" step="0.01" value={config.slippagePct} onChange={(event) => updateConfig({ slippagePct: Number(event.target.value) })} />
+              <span>%</span>
+            </div>
           </label>
         </div>
 
@@ -362,7 +368,7 @@ export function PositionCalculatorModal({
             )}
 
             <div className="position-formula">
-              公式：仓位数量 = 本金 × 杠杆 ÷ 开仓价；净收益 = 方向 × (平仓价 − 开仓价) × 数量 − 开仓/平仓双边手续费。开仓与平仓均计入配置滑点；同一根 K 线同时碰到止盈止损按止损优先；跳空按开盘价成交；未设置止盈止损时按回放区间最后一根收盘价估算；估算强平忽略维持保证金与资金费率，手续费按配置单边费率计。批量模式按信号时间顺序保持单仓位复利：若下一选中信号早于当前持仓退出，会按下一信号价格强制平仓；未到止盈止损的收益按该价格结算。
+              公式：仓位数量 = 本金 × 杠杆 ÷ 开仓价；净收益 = 方向 × (平仓价 − 开仓价) × 数量 − 开仓/平仓双边手续费。开仓与平仓均计入配置滑点；同一根 K 线同时碰到止盈止损按止损优先；跳空按开盘价成交；未设置止盈止损时按回放区间最后一根收盘价估算；估算强平忽略维持保证金与资金费率，手续费按配置单边费率计。批量模式按信号时间顺序保持单仓位复利：若下一选中信号在当前持仓止盈/止损前出现，会跳过该信号，不平仓，也不会在之后补开仓。
             </div>
           </>
         ) : !loading && !error ? <div className="empty-table">设置参数后点击“开始计算”。</div> : null}

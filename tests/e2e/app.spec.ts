@@ -548,7 +548,9 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.locator('.modal-card').getByText(/批量复利计算/)).toBeVisible();
     await page.locator('.modal-card').getByTestId('position-calculate').click();
     await expect(page.locator('.modal-card').getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('.modal-card .position-trade-row')).toHaveCount(2);
+    await expect(page.locator('.modal-card .position-trade-row')).toHaveCount(1);
+    await expect(page.locator('.modal-card .position-skipped')).toContainText('跳过 1 条');
+    await expect(page.locator('.modal-card .warning-banner')).not.toContainText('强制平仓');
   });
 
   test('runs a custom date range asynchronously with an ETA and loads the result', async ({ page }) => {

@@ -192,7 +192,6 @@ function simulateTrade(
   endTime: number,
   equityBefore: number,
   optionsSymbol = '',
-  forcedExit?: { at: number; price: number },
 ): PositionTradeResult {
   const direction = config.direction;
   const entryAt = trigger.barCloseTime > 0 ? trigger.barCloseTime : trigger.triggerAt;
@@ -215,9 +214,8 @@ function simulateTrade(
     ? plannedTargetPnl / Math.abs(plannedStopPnl)
     : null;
 
-  const limit = forcedExit ? Math.min(endTime, forcedExit.at) : endTime;
   const future = candles
-    .filter((candle) => candle.openTime >= entryAt && candle.openTime + timeframeMs <= limit)
+    .filter((candle) => candle.openTime >= entryAt && candle.openTime + timeframeMs <= endTime)
     .sort((a, b) => a.openTime - b.openTime);
 
   let rawExit: number | null = null;
@@ -270,21 +268,15 @@ function simulateTrade(
   }
 
   if (rawExit === null) {
-    if (forcedExit) {
-      rawExit = forcedExit.price;
-      exitAt = forcedExit.at;
-      reason = 'next-signal';
+    const last = future[future.length - 1];
+    if (last) {
+      rawExit = last.close;
+      exitAt = last.openTime + timeframeMs;
+      reason = 'end';
     } else {
-      const last = future[future.length - 1];
-      if (last) {
-        rawExit = last.close;
-        exitAt = last.openTime + timeframeMs;
-        reason = 'end';
-      } else {
-        rawExit = trigger.price;
-        exitAt = entryAt;
-        reason = 'no-data';
-      }
+      rawExit = trigger.price;
+      exitAt = entryAt;
+      reason = 'no-data';
     }
   }
 
@@ -360,19 +352,24 @@ export function calculatePositions(options: {
     .sort((a, b) => a.trigger.triggerAt - b.trigger.triggerAt || a.index - b.index);
 
   let equity = config.capital;
-  let forcedCount = 0;
+  let lastExitAt = Number.NEGATIVE_INFINITY;
+  let overlapCount = 0;
   const trades: PositionTradeResult[] = [];
   const skipped: PositionSkipped[] = [];
   const warnings: string[] = [];
 
-  for (let position = 0; position < selected.length; position++) {
-    const item = selected[position];
+  for (const item of selected) {
     if (equity <= 0) {
       skipped.push({ index: item.index, triggerAt: item.trigger.triggerAt, reason: 'insufficient-equity' });
       continue;
     }
-    const next = selected[position + 1];
-    const forcedExit = next ? { at: next.trigger.triggerAt, price: next.trigger.price } : undefined;
+    // A signal that arrives while the previous position is still open is
+    // skipped. It is not queued or filled retroactively after the exit.
+    if (item.trigger.triggerAt < lastExitAt) {
+      skipped.push({ index: item.index, triggerAt: item.trigger.triggerAt, reason: 'overlap' });
+      overlapCount++;
+      continue;
+    }
     const trade = simulateTrade(
       item.trigger,
       candles,
@@ -381,12 +378,11 @@ export function calculatePositions(options: {
       options.endTime,
       equity,
       options.symbol,
-      forcedExit,
     );
     trade.index = item.index;
     trades.push(trade);
     equity = trade.equityAfter;
-    if (trade.exitReason === 'next-signal') forcedCount++;
+    lastExitAt = trade.exitAt;
     if (trade.exitReason === 'liquidation') warnings.push(`#${item.index + 1} 触发估算强平，收益按保证金上限截断`);
     if (trade.stopBeyondLiquidation) {
       warnings.push(`#${item.index + 1} 止损价已超过估算强平价，盈亏比不可用；实际可能先触发强平，请降低杠杆或缩小止损比例`);
@@ -394,8 +390,8 @@ export function calculatePositions(options: {
     if (trade.exitReason === 'no-data') warnings.push(`#${item.index + 1} 之后没有可用 K 线，按开仓价退出`);
   }
 
-  if (forcedCount > 0) {
-    warnings.push(`${forcedCount} 笔持仓在下一选中信号出现时强制平仓，保证批量复利始终只有一笔仓位；未到止盈/止损的收益按下一信号价格结算。`);
+  if (overlapCount > 0) {
+    warnings.push(`${overlapCount} 个信号因上一笔仓位尚未退出而跳过；跳过的信号不会延后补开仓。`);
   }
   if (skipped.some((item) => item.reason === 'insufficient-equity')) {
     warnings.push('权益已归零，后续信号不再开仓。');

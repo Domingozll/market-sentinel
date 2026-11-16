@@ -172,7 +172,7 @@ describe('position calculator', () => {
     expect(end.grossPnl).toBeCloseTo(50, 8);
   });
 
-  it('keeps one position at a time and forces flat at the next selected signal', () => {
+  it('skips signals that arrive while the current position is still open', () => {
     const candles = [
       candle(300_000, 100, 102, 98, 100),
       candle(600_000, 100, 102, 98, 100),
@@ -190,18 +190,14 @@ describe('position calculator', () => {
       endTime: 1_500_000,
       config: config({ target: { mode: 'none' }, stop: { mode: 'none' } }),
     });
-    expect(result.trades).toHaveLength(3);
-    expect(result.skipped).toEqual([]);
-    expect(result.trades[0].exitReason).toBe('next-signal');
-    expect(result.trades[0].exitAt).toBe(450_000);
-    expect(result.trades[0].durationMs).toBe(150_000);
-    expect(result.trades[0].exitAt).toBeLessThanOrEqual(result.trades[1].entryAt);
-    expect(result.trades[1].exitReason).toBe('next-signal');
-    expect(result.trades[1].exitAt).toBe(900_000);
-    expect(result.trades[1].exitAt).toBeLessThanOrEqual(result.trades[2].entryAt);
-    expect(result.trades[2].exitReason).toBe('end');
-    expect(result.warnings.join(' ')).toContain('强制平仓');
-    expect(result.warnings.join(' ')).toContain('只有一笔仓位');
+    expect(result.trades).toHaveLength(1);
+    expect(result.trades[0].exitReason).toBe('end');
+    expect(result.skipped).toEqual([
+      { index: 1, triggerAt: 450_000, reason: 'overlap' },
+      { index: 2, triggerAt: 900_000, reason: 'overlap' },
+    ]);
+    expect(result.warnings.join(' ')).toContain('尚未退出而跳过');
+    expect(result.warnings.join(' ')).not.toContain('强制平仓');
   });
 
   it('applies take-profit before the next selected signal', () => {

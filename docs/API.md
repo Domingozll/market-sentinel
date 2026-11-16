@@ -203,7 +203,7 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 - `target`/`stop` 的 `mode`：`none | price | percent | indicator`；`stop` 额外支持 `roi`。`indicator` 可取信号周期上的任意价格类指标（价格/Bollinger 等），服务端按默认参数在触发 K 线计算，不依赖图表周期。
 - `price` 为绝对价格；`percent` 为相对开仓价的价格百分比；`roi` 为保证金净收益率（亏损达到当前投入保证金的 `roiPercent`% 时止损，服务端会按手续费和滑点反推价格）；`indicator` 的 `series` 必须是价格类指标，并取该信号条件快照里的值。
 - 默认单边手续费 0.05%、单边滑点 0.02%；手续费和滑点均参与净收益和盈亏比计算。
-- 批量按信号时间排序复利；所有选中信号都会计算，但始终保持单仓位：若下一选中信号早于当前持仓退出，按下一信号价格强制平仓当前仓位。结果会返回 `next-signal` 退出原因和强制平仓警告；权益归零后的信号才进入 `skipped`。每条交易返回 `symbol/direction/leverage/marginMode/entryAt/exitAt/durationMs/entryPrice/exitPrice/quantity/notional/initialMargin/maintenanceMargin/fundingFee/openFee/closeFee/fees/grossPnl/netPnl/roiPct/pnlOnNotionalPct/riskReward/liquidationPrice/equityBefore/equityAfter`；维持保证金和资金费返回 `null` 表示未建模。
+- 批量按信号时间排序复利；始终保持单仓位：若下一选中信号在当前持仓退出前出现，该信号进入 `skipped`（`reason=overlap`），不强制平仓、不延后补开；权益归零后的信号同样进入 `skipped`。每条交易返回 `symbol/direction/leverage/marginMode/entryAt/exitAt/durationMs/entryPrice/exitPrice/quantity/notional/initialMargin/maintenanceMargin/fundingFee/openFee/closeFee/fees/grossPnl/netPnl/roiPct/pnlOnNotionalPct/riskReward/liquidationPrice/equityBefore/equityAfter`；维持保证金和资金费返回 `null` 表示未建模。
 - 同一根 K 线同时触发止盈止损按止损优先；跳空按开盘价；未设置止盈止损时按区间最后收盘价；强平按逐仓保证金上限截断；未计资金费率、维持保证金和手续费等级差异。
 
 计算成功返回 `{ calculation, calculationId, cached }`。相同 `replayId + triggerIndexes + config` 会直接返回已保存结果，`cached=true`。计算前会分批补齐信号周期 K 线并严格校验完整性；仍缺数据返回 422，不会用缺口数据继续模拟。配置/信号序号不合法返回 400，回放/记录不存在返回 404。

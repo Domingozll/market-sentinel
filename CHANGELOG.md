@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Batch position replay now skips a signal that arrives while the current position is still open instead of force-closing the position; skipped signals are reported by index.
 - Position config now warns before calculation when a percentage stop lies beyond the estimated liquidation distance and explains that stop percentages are price moves, not margin-loss percentages.
 - Risk/reward is now omitted when the configured stop is beyond estimated liquidation; cached records are normalized when read.
 - Renamed the ambiguous “fixed percentage” exit mode to price percentage and added a net margin-return stop that targets a percentage of the current position margin, including fees and slippage.
@@ -77,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Batch position replay now skips a signal that arrives while the current position is still open instead of force-closing the position; skipped signals are reported by index.
 - Position config now warns before calculation when a percentage stop lies beyond the estimated liquidation distance and explains that stop percentages are price moves, not margin-loss percentages.
 - Risk/reward is now omitted when the configured stop is beyond estimated liquidation; cached records are normalized when read.
 - Renamed the ambiguous “fixed percentage” exit mode to price percentage and added a net margin-return stop that targets a percentage of the current position margin, including fees and slippage.
