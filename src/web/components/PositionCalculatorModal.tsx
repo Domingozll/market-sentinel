@@ -23,10 +23,11 @@ const DEFAULT_CONFIG: PositionCalculatorConfig = {
   stop: { mode: 'none' },
 };
 
-const EXIT_MODES: { value: PositionExitMode; label: string }[] = [
+const EXIT_MODES: { value: PositionExitMode; label: string; stopOnly?: boolean }[] = [
   { value: 'none', label: '不设置' },
   { value: 'price', label: '固定价格' },
-  { value: 'percent', label: '固定比例' },
+  { value: 'percent', label: '价格比例（相对开仓价）' },
+  { value: 'roi', label: '保证金收益率（净盈亏/本金）', stopOnly: true },
   { value: 'indicator', label: '指标值' },
 ];
 
@@ -79,11 +80,13 @@ function ExitControl({
   label,
   rule,
   options,
+  allowRoi = false,
   onChange,
 }: {
   label: string;
   rule: PositionExitRule;
   options: { key: SeriesKey; label: string }[];
+  allowRoi?: boolean;
   onChange: (rule: PositionExitRule) => void;
 }) {
   return (
@@ -97,15 +100,23 @@ function ExitControl({
             ...(mode === 'indicator' && options[0] ? { series: options[0].key } : {}),
           });
         }}>
-          {EXIT_MODES.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+          {EXIT_MODES.filter((mode) => allowRoi || !mode.stopOnly).map((mode) => (
+            <option key={mode.value} value={mode.value}>{mode.label}</option>
+          ))}
         </select>
         {rule.mode === 'price' ? (
           <input className="input" type="number" min="0" step="any" placeholder="价格" value={rule.price ?? ''} onChange={(event) => onChange({ ...rule, price: Number(event.target.value) })} />
         ) : null}
         {rule.mode === 'percent' ? (
           <div className="position-input-suffix">
-            <input className="input" type="number" min="0" step="0.1" placeholder="比例" value={rule.percent ?? ''} onChange={(event) => onChange({ ...rule, percent: Number(event.target.value) })} />
-            <span>%</span>
+            <input className="input" type="number" min="0" step="0.1" placeholder="价格比例" value={rule.percent ?? ''} onChange={(event) => onChange({ ...rule, percent: Number(event.target.value) })} />
+            <span>% 价格</span>
+          </div>
+        ) : null}
+        {rule.mode === 'roi' ? (
+          <div className="position-input-suffix">
+            <input className="input" type="number" min="0" step="0.1" placeholder="保证金收益率" value={rule.roiPercent ?? ''} onChange={(event) => onChange({ ...rule, roiPercent: Number(event.target.value) })} />
+            <span>% 净收益率</span>
           </div>
         ) : null}
         {rule.mode === 'indicator' ? (
@@ -183,9 +194,13 @@ export function PositionCalculatorModal({
   const stopPercent = config.stop.mode === 'percent' && typeof config.stop.percent === 'number' && Number.isFinite(config.stop.percent)
     ? config.stop.percent
     : null;
-  const stopBeyondLiquidation = stopPercent !== null
+  const stopRoiPercent = config.stop.mode === 'roi' && typeof config.stop.roiPercent === 'number' && Number.isFinite(config.stop.roiPercent)
+    ? config.stop.roiPercent
+    : null;
+  const effectiveStopMovePct = stopPercent ?? (stopRoiPercent !== null ? stopRoiPercent / config.leverage : null);
+  const stopBeyondLiquidation = effectiveStopMovePct !== null
     && liquidationDistancePct !== null
-    && stopPercent >= liquidationDistancePct;
+    && effectiveStopMovePct >= liquidationDistancePct;
 
   return (
     <Modal
@@ -220,8 +235,8 @@ export function PositionCalculatorModal({
         </div>
 
         <div className="position-exits">
-          <ExitControl label="止盈（可选，价格比例）" rule={config.target} options={options} onChange={(target) => updateConfig({ target })} />
-          <ExitControl label="止损（可选，价格比例）" rule={config.stop} options={options} onChange={(stop) => updateConfig({ stop })} />
+          <ExitControl label="止盈（可选）" rule={config.target} options={options} onChange={(target) => updateConfig({ target })} />
+          <ExitControl label="止损（可选）" rule={config.stop} options={options} allowRoi onChange={(stop) => updateConfig({ stop })} />
         </div>
 
         {liquidationDistancePct !== null ? (
@@ -229,18 +244,20 @@ export function PositionCalculatorModal({
             <TriangleAlert size={13} />
             <span>
               {config.leverage}x 估算强平距离约 {liquidationDistancePct.toFixed(2)}%（按逐仓、忽略维持保证金与资金费估算）。
-              {stopPercent === null
-                ? ' 未设置比例止损。'
-                : stopBeyondLiquidation
-                  ? ` 当前 ${stopPercent}% 止损在强平价之外，实际会先触发强平；如需止损先生效，请降低杠杆到约 ${Math.floor(100 / stopPercent)}x 以下，或把止损比例降到约 ${liquidationDistancePct.toFixed(2)}% 以内。`
-                  : ` 当前 ${stopPercent}% 止损位于估算强平之前，止损可以先生效。`}
-              {' '}止损比例是价格变动百分比，不是保证金亏损百分比。
+              {stopPercent === null && stopRoiPercent === null
+                ? ' 未设置百分比止损。'
+                : stopRoiPercent !== null
+                  ? ` 当前保证金收益率止损 ${stopRoiPercent}% 约对应价格反向 ${effectiveStopMovePct?.toFixed(3)}%；${stopBeyondLiquidation ? '它在强平价之外，实际会先触发强平。' : '它位于估算强平之前，会按净盈亏约 −' + stopRoiPercent + '% 触发。'}`
+                  : stopBeyondLiquidation
+                    ? ` 当前价格比例止损 ${stopPercent}% 在强平价之外，实际会先触发强平；如需止损先生效，请降低杠杆到约 ${Math.floor(100 / (stopPercent ?? 1))}x 以下，或把止损比例降到约 ${liquidationDistancePct.toFixed(2)}% 以内。`
+                    : ` 当前价格比例止损 ${stopPercent}% 位于估算强平之前，止损可以先生效。`}
+              {' '}价格比例按价格变动计算；保证金收益率按净盈亏 / 当前这笔仓位的保证金计算。
             </span>
           </div>
         ) : null}
 
         {options.length === 0 ? (
-          <div className="form-hint">当前信号没有可用于止盈/止损的价格类指标；可改用固定价格或固定比例。</div>
+          <div className="form-hint">当前信号没有可用于止盈/止损的价格类指标；可改用固定价格、价格比例或保证金收益率。</div>
         ) : null}
 
         <div className="position-calc-actions">

@@ -625,3 +625,6 @@ h1,h2,h3,p{margin-top:0}
 .position-risk-hint svg{flex:0 0 auto;color:#8bb7f4;margin-top:1px}
 .position-risk-hint.danger{border-color:rgba(240,97,106,.3);background:rgba(240,97,106,.06);color:#d9a4a7}
 .position-risk-hint.danger svg{color:#f08b92}
+
+.position-input-suffix{flex:0 0 auto}
+.position-input-suffix span{white-space:nowrap}

@@ -282,6 +282,29 @@ describe('position calculator', () => {
     expect(trade.equityAfter).toBe(0);
   });
 
+  it('supports a net margin-return stop independent of price percentage', () => {
+    const result = calculatePositions({
+      triggers: [trigger()],
+      triggerIndexes: [0],
+      candles: [candle(300_000, 100, 101, 95, 100)],
+      timeframeMs: tfMs,
+      endTime: 900_000,
+      config: config({
+        leverage: 10,
+        feeRatePct: 0,
+        slippagePct: 0,
+        target: { mode: 'none' },
+        stop: { mode: 'roi', roiPercent: 25 },
+      }),
+    });
+    const trade = result.trades[0];
+    expect(trade.exitReason).toBe('stop');
+    expect(trade.stopPrice).toBeCloseTo(97.5, 8);
+    expect(trade.netPnl).toBeCloseTo(-250, 8);
+    expect(trade.roiPct).toBeCloseTo(-25, 8);
+    expect(trade.stopBeyondLiquidation).toBe(false);
+  });
+
   it('marks risk/reward unavailable when the stop is beyond liquidation', () => {
     const result = calculatePositions({
       triggers: [trigger()],

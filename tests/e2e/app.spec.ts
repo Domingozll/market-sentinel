@@ -524,8 +524,13 @@ test.describe.serial('Market Sentinel system flow', () => {
     // High leverage makes a wide percentage stop unreachable before liquidation.
     await modal.locator('.position-config-grid input[type="number"]').nth(1).fill('40');
     await exits.nth(1).locator('input[type="number"]').fill('25');
-    await expect(modal.locator('.position-risk-hint.danger')).toContainText('止损在强平价之外');
+    await expect(modal.locator('.position-risk-hint.danger')).toContainText('在强平价之外');
+    await exits.nth(1).locator('select').selectOption('roi');
+    await exits.nth(1).locator('input[type="number"]').fill('25');
+    await expect(modal.locator('.position-risk-hint')).toContainText('保证金收益率止损');
+    await expect(modal.locator('.position-risk-hint')).not.toHaveClass(/danger/);
     await modal.locator('.position-config-grid input[type="number"]').nth(1).fill('1');
+    await exits.nth(1).locator('select').selectOption('percent');
     await exits.nth(1).locator('input[type="number"]').fill('1');
     await modal.getByTestId('position-calculate').click();
     await expect(modal.getByTestId('position-calc-single')).toContainText('盈亏比');

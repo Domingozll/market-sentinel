@@ -163,6 +163,7 @@ function canonicalPositionConfig(config: PositionCalculatorConfig) {
     mode: rule.mode,
     ...(rule.mode === 'price' ? { price: rule.price } : {}),
     ...(rule.mode === 'percent' ? { percent: rule.percent } : {}),
+    ...(rule.mode === 'roi' ? { roiPercent: rule.roiPercent } : {}),
     ...(rule.mode === 'indicator' ? { series: rule.series } : {}),
   });
   return {
@@ -178,7 +179,7 @@ function canonicalPositionConfig(config: PositionCalculatorConfig) {
 
 function positionCacheKey(config: PositionCalculatorConfig, triggerIndexes: number[]): string {
   return createHash('sha256').update(JSON.stringify({
-    algorithm: 'position-calc-v3',
+    algorithm: 'position-calc-v4',
     config: canonicalPositionConfig(config),
     triggerIndexes: [...triggerIndexes].sort((a, b) => a - b),
   })).digest('hex');

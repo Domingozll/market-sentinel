@@ -478,14 +478,16 @@ export interface ReplayRecord extends ReplaySummary {
 }
 
 export type PositionDirection = 'long' | 'short';
-export type PositionExitMode = 'none' | 'price' | 'percent' | 'indicator';
+export type PositionExitMode = 'none' | 'price' | 'percent' | 'indicator' | 'roi';
 
 export interface PositionExitRule {
   mode: PositionExitMode;
   /** Absolute price for mode=price. */
   price?: number;
-  /** Positive percentage distance from entry for mode=percent. */
+  /** Positive price-move percentage from entry for mode=percent. */
   percent?: number;
+  /** Positive net-return percentage on allocated margin for mode=roi (stop only). */
+  roiPercent?: number;
   /** Price-like indicator series used by mode=indicator. */
   series?: SeriesKey;
 }

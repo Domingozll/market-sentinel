@@ -45,14 +45,20 @@ export function validatePositionConfig(config: PositionCalculatorConfig): void {
     throw new PositionCalcError('滑点必须在 0–10% 之间（单边）');
   }
   for (const [name, rule] of [['止盈', config.target], ['止损', config.stop]] as const) {
-    if (!['none', 'price', 'percent', 'indicator'].includes(rule.mode)) {
+    if (!['none', 'price', 'percent', 'indicator', 'roi'].includes(rule.mode)) {
       throw new PositionCalcError(`${name}方式不合法`);
+    }
+    if (rule.mode === 'roi' && name !== '止损') {
+      throw new PositionCalcError('收益率模式仅支持止损');
     }
     if (rule.mode === 'price' && (!isFinitePositive(rule.price) || rule.price <= 0)) {
       throw new PositionCalcError(`${name}固定价格必须是大于 0 的有限数字`);
     }
     if (rule.mode === 'percent' && (!isFinitePositive(rule.percent) || rule.percent > 1000)) {
       throw new PositionCalcError(`${name}比例必须在 0–1000% 之间`);
+    }
+    if (rule.mode === 'roi' && (!isFinitePositive(rule.roiPercent) || rule.roiPercent > 1000)) {
+      throw new PositionCalcError(`${name}收益率必须在 0–1000% 之间`);
     }
     if (rule.mode === 'indicator' && (!rule.series || !SERIES_CATALOG[rule.series] || SERIES_CATALOG[rule.series].unit !== 'price')) {
       throw new PositionCalcError(`${name}指标必须是价格类指标`);
@@ -83,6 +89,7 @@ function resolveExit(
 ): number | null {
   if (mode === 'none') return null;
   if (mode === 'price') return rule.price ?? null;
+  if (mode === 'roi') throw new PositionCalcError('收益率模式不能作为止盈');
   if (mode === 'percent') {
     const delta = entry * ((rule.percent ?? 0) / 100);
     const favorable = direction === 'long' ? entry + delta : entry - delta;
@@ -120,14 +127,47 @@ function plannedNet(
   return gross - feeAmount(quantity, entry, config.feeRatePct) - feeAmount(quantity, exit, config.feeRatePct);
 }
 
+function priceForMarginRoi(
+  entry: number,
+  quantity: number,
+  margin: number,
+  roiPct: number,
+  direction: 'long' | 'short',
+  config: PositionCalculatorConfig,
+): number {
+  const targetNet = -(margin * roiPct) / 100;
+  const atEntry = plannedNet(quantity, entry, entry, direction, config);
+  if (targetNet >= atEntry) return entry;
+
+  let low = direction === 'long' ? entry * 1e-6 : entry;
+  let high = direction === 'long' ? entry : entry * 1e6;
+  for (let i = 0; i < 160; i++) {
+    const mid = (low + high) / 2;
+    const net = plannedNet(quantity, entry, mid, direction, config);
+    if (direction === 'long') {
+      if (net > targetNet) high = mid;
+      else low = mid;
+    } else if (net > targetNet) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  return (low + high) / 2;
+}
+
 function resolveTradeLevels(
   trigger: TrialTrigger,
   entry: number,
+  quantity: number,
+  margin: number,
   config: PositionCalculatorConfig,
 ): ResolvedTrade {
   const direction = config.direction;
   const targetPrice = resolveExit(config.target.mode, config.target, entry, direction, trigger, '止盈', 'target');
-  const stopPrice = resolveExit(config.stop.mode, config.stop, entry, direction, trigger, '止损', 'stop');
+  const stopPrice = config.stop.mode === 'roi'
+    ? priceForMarginRoi(entry, quantity, margin, config.stop.roiPercent ?? 0, direction, config)
+    : resolveExit(config.stop.mode, config.stop, entry, direction, trigger, '止损', 'stop');
   if (targetPrice !== null) {
     if (direction === 'long' ? targetPrice <= entry : targetPrice >= entry) {
       throw new PositionCalcError(`止盈价 ${targetPrice} 不在 ${direction === 'long' ? '开仓价上方' : '开仓价下方'}（信号 #${trigger.triggerAt}）`);
@@ -160,7 +200,7 @@ function simulateTrade(
   if (!isFinitePositive(entryPrice)) throw new PositionCalcError('信号价格不合法');
   const quantity = (equityBefore * config.leverage) / entryPrice;
   if (!Number.isFinite(quantity) || quantity <= 0) throw new PositionCalcError('仓位数量计算失败');
-  const levels = resolveTradeLevels(trigger, entryPrice, config);
+  const levels = resolveTradeLevels(trigger, entryPrice, quantity, equityBefore, config);
   const { targetPrice, stopPrice, liquidationPrice } = levels;
 
   const plannedTargetPnl = targetPrice === null ? null : plannedNet(quantity, entryPrice, targetPrice, direction, config);
@@ -363,6 +403,9 @@ export function calculatePositions(options: {
 
   if (config.stop.mode === 'percent' && (config.stop.percent ?? 0) * config.leverage >= 100) {
     warnings.push('止损比例 × 杠杆 ≥ 100%，单笔价格止损可能亏损全部保证金；请降低杠杆或缩小止损比例');
+  }
+  if (config.stop.mode === 'roi' && (config.stop.roiPercent ?? 0) >= 100) {
+    warnings.push('保证金收益率止损 ≥ 100%，可能在触发止损前先亏损全部保证金；请降低止损收益率或杠杆');
   }
 
   let runningPeak = config.capital;
