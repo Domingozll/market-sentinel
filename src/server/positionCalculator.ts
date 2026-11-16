@@ -48,9 +48,6 @@ export function validatePositionConfig(config: PositionCalculatorConfig): void {
     if (!['none', 'price', 'percent', 'indicator', 'roi'].includes(rule.mode)) {
       throw new PositionCalcError(`${name}方式不合法`);
     }
-    if (rule.mode === 'roi' && name !== '止损') {
-      throw new PositionCalcError('收益率模式仅支持止损');
-    }
     if (rule.mode === 'price' && (!isFinitePositive(rule.price) || rule.price <= 0)) {
       throw new PositionCalcError(`${name}固定价格必须是大于 0 的有限数字`);
     }
@@ -89,7 +86,6 @@ function resolveExit(
 ): number | null {
   if (mode === 'none') return null;
   if (mode === 'price') return rule.price ?? null;
-  if (mode === 'roi') throw new PositionCalcError('收益率模式不能作为止盈');
   if (mode === 'percent') {
     const delta = entry * ((rule.percent ?? 0) / 100);
     const favorable = direction === 'long' ? entry + delta : entry - delta;
@@ -134,13 +130,22 @@ function priceForMarginRoi(
   roiPct: number,
   direction: 'long' | 'short',
   config: PositionCalculatorConfig,
+  side: 'target' | 'stop',
 ): number {
-  const targetNet = -(margin * roiPct) / 100;
+  const targetNet = (side === 'target' ? 1 : -1) * (margin * roiPct) / 100;
   const atEntry = plannedNet(quantity, entry, entry, direction, config);
-  if (targetNet >= atEntry) return entry;
+  if (side === 'stop' && targetNet >= atEntry) return entry;
+  if (side === 'target' && targetNet <= atEntry) return entry;
 
-  let low = direction === 'long' ? entry * 1e-6 : entry;
-  let high = direction === 'long' ? entry : entry * 1e6;
+  let low: number;
+  let high: number;
+  if (side === 'target') {
+    low = direction === 'long' ? entry : entry * 1e-6;
+    high = direction === 'long' ? entry * 1e6 : entry;
+  } else {
+    low = direction === 'long' ? entry * 1e-6 : entry;
+    high = direction === 'long' ? entry : entry * 1e6;
+  }
   for (let i = 0; i < 160; i++) {
     const mid = (low + high) / 2;
     const net = plannedNet(quantity, entry, mid, direction, config);
@@ -164,9 +169,11 @@ function resolveTradeLevels(
   config: PositionCalculatorConfig,
 ): ResolvedTrade {
   const direction = config.direction;
-  const targetPrice = resolveExit(config.target.mode, config.target, entry, direction, trigger, '止盈', 'target');
+  const targetPrice = config.target.mode === 'roi'
+    ? priceForMarginRoi(entry, quantity, margin, config.target.roiPercent ?? 0, direction, config, 'target')
+    : resolveExit(config.target.mode, config.target, entry, direction, trigger, '止盈', 'target');
   const stopPrice = config.stop.mode === 'roi'
-    ? priceForMarginRoi(entry, quantity, margin, config.stop.roiPercent ?? 0, direction, config)
+    ? priceForMarginRoi(entry, quantity, margin, config.stop.roiPercent ?? 0, direction, config, 'stop')
     : resolveExit(config.stop.mode, config.stop, entry, direction, trigger, '止损', 'stop');
   if (targetPrice !== null) {
     if (direction === 'long' ? targetPrice <= entry : targetPrice >= entry) {

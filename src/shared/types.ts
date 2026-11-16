@@ -486,7 +486,7 @@ export interface PositionExitRule {
   price?: number;
   /** Positive price-move percentage from entry for mode=percent. */
   percent?: number;
-  /** Positive net-return percentage on allocated margin for mode=roi (stop only). */
+  /** Positive net-return percentage on allocated margin for mode=roi. */
   roiPercent?: number;
   /** Price-like indicator series used by mode=indicator. */
   series?: SeriesKey;

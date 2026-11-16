@@ -23,11 +23,11 @@ const DEFAULT_CONFIG: PositionCalculatorConfig = {
   stop: { mode: 'none' },
 };
 
-const EXIT_MODES: { value: PositionExitMode; label: string; stopOnly?: boolean }[] = [
+const EXIT_MODES: { value: PositionExitMode; label: string }[] = [
   { value: 'none', label: '不设置' },
   { value: 'price', label: '固定价格' },
   { value: 'percent', label: '价格比例（相对开仓价）' },
-  { value: 'roi', label: '保证金收益率（净盈亏/本金）', stopOnly: true },
+  { value: 'roi', label: '保证金收益率（净盈亏/本金）' },
   { value: 'indicator', label: '指标值' },
 ];
 
@@ -80,13 +80,11 @@ function ExitControl({
   label,
   rule,
   options,
-  allowRoi = false,
   onChange,
 }: {
   label: string;
   rule: PositionExitRule;
   options: { key: SeriesKey; label: string }[];
-  allowRoi?: boolean;
   onChange: (rule: PositionExitRule) => void;
 }) {
   return (
@@ -100,7 +98,7 @@ function ExitControl({
             ...(mode === 'indicator' && options[0] ? { series: options[0].key } : {}),
           });
         }}>
-          {EXIT_MODES.filter((mode) => allowRoi || !mode.stopOnly).map((mode) => (
+          {EXIT_MODES.map((mode) => (
             <option key={mode.value} value={mode.value}>{mode.label}</option>
           ))}
         </select>
@@ -242,7 +240,7 @@ export function PositionCalculatorModal({
 
         <div className="position-exits">
           <ExitControl label="止盈（可选）" rule={config.target} options={options} onChange={(target) => updateConfig({ target })} />
-          <ExitControl label="止损（可选）" rule={config.stop} options={options} allowRoi onChange={(stop) => updateConfig({ stop })} />
+          <ExitControl label="止损（可选）" rule={config.stop} options={options} onChange={(stop) => updateConfig({ stop })} />
         </div>
 
         {liquidationDistancePct !== null ? (
