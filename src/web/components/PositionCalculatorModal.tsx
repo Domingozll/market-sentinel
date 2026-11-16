@@ -124,12 +124,16 @@ export function PositionCalculatorModal({
   replayId,
   result,
   selectedIndexes,
+  initialConfig,
+  initialCalculation,
   onClose,
 }: {
   open: boolean;
   replayId: string;
   result: TrialResult | null;
   selectedIndexes: number[];
+  initialConfig?: PositionCalculatorConfig | null;
+  initialCalculation?: PositionCalculationResult | null;
   onClose: () => void;
 }) {
   const [config, setConfig] = useState<PositionCalculatorConfig>(DEFAULT_CONFIG);
@@ -143,10 +147,11 @@ export function PositionCalculatorModal({
 
   useEffect(() => {
     if (!open) return;
-    setCalculation(null);
+    setConfig(initialConfig ?? initialCalculation?.config ?? DEFAULT_CONFIG);
+    setCalculation(initialCalculation ?? null);
     setError(null);
     setDirty(false);
-  }, [open, selectedIndexes.join(','), replayId]);
+  }, [open, selectedIndexes.join(','), replayId, initialConfig, initialCalculation]);
 
   async function calculate() {
     if (!replayId || !result || !selectedIndexes.length) return;

@@ -14,6 +14,10 @@ import {
   type TrialResult,
   type ReplayJobView,
   type ReplayPeriod,
+  type PositionCalculationRecord,
+  type PositionCalculationSummary,
+  type PositionCalculationResult,
+  type PositionCalculatorConfig,
   type ExpressionNode,
   type Rule,
   type RuleDraft,
@@ -131,6 +135,16 @@ interface ReplayRow {
   period_json: string | null;
   created_at: number;
   result_json: string;
+}
+
+interface PositionCalculationRow {
+  id: string;
+  replay_id: string;
+  cache_key: string;
+  config_json: string;
+  trigger_indexes_json: string;
+  result_json: string;
+  created_at: number;
 }
 
 interface ReplayJobRow {
@@ -280,6 +294,19 @@ CREATE TABLE IF NOT EXISTS replay_jobs (
   finished_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_replay_jobs_rule ON replay_jobs(rule_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS position_calculations (
+  id TEXT PRIMARY KEY,
+  replay_id TEXT NOT NULL,
+  cache_key TEXT NOT NULL,
+  config_json TEXT NOT NULL,
+  trigger_indexes_json TEXT NOT NULL,
+  result_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(replay_id, cache_key)
+);
+CREATE INDEX IF NOT EXISTS idx_position_calculations_replay
+  ON position_calculations(replay_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -1113,6 +1140,86 @@ export class Store {
       createdAt: row.created_at,
       startedAt: row.started_at,
       finishedAt: row.finished_at,
+    };
+  }
+
+  findPositionCalculation(replayId: string, cacheKey: string): PositionCalculationRecord | null {
+    const row = this.db.prepare(
+      'SELECT * FROM position_calculations WHERE replay_id=? AND cache_key=? LIMIT 1',
+    ).get(replayId, cacheKey) as PositionCalculationRow | undefined;
+    return row ? this.mapPositionCalculation(row) : null;
+  }
+
+  savePositionCalculation(input: {
+    id: string;
+    replayId: string;
+    cacheKey: string;
+    config: PositionCalculatorConfig;
+    triggerIndexes: number[];
+    calculation: PositionCalculationResult;
+    createdAt: number;
+  }): PositionCalculationRecord {
+    this.db.prepare(
+      `INSERT INTO position_calculations
+        (id, replay_id, cache_key, config_json, trigger_indexes_json, result_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      input.id,
+      input.replayId,
+      input.cacheKey,
+      JSON.stringify(input.config),
+      JSON.stringify(input.triggerIndexes),
+      JSON.stringify(input.calculation),
+      input.createdAt,
+    );
+    return this.getPositionCalculation(input.id)!;
+  }
+
+  getPositionCalculation(id: string): PositionCalculationRecord | null {
+    const row = this.db.prepare('SELECT * FROM position_calculations WHERE id=?').get(id) as PositionCalculationRow | undefined;
+    return row ? this.mapPositionCalculation(row) : null;
+  }
+
+  listPositionCalculations(replayId: string, limit = 20): PositionCalculationSummary[] {
+    const rows = this.db.prepare(
+      'SELECT * FROM position_calculations WHERE replay_id=? ORDER BY created_at DESC, rowid DESC LIMIT ?',
+    ).all(replayId, Math.max(1, Math.min(100, limit))) as unknown as PositionCalculationRow[];
+    return rows.map((row) => this.mapPositionCalculation(row)).map((record) => this.positionSummary(record));
+  }
+
+  private positionSummary(record: PositionCalculationRecord): PositionCalculationSummary {
+    return {
+      id: record.id,
+      replayId: record.replayId,
+      createdAt: record.createdAt,
+      direction: record.calculation.config.direction,
+      leverage: record.calculation.config.leverage,
+      capital: record.calculation.initialCapital,
+      triggerCount: record.triggerIndexes.length,
+      tradeCount: record.calculation.trades.length,
+      finalEquity: record.calculation.finalEquity,
+      totalNetPnl: record.calculation.totalNetPnl,
+      totalReturnPct: record.calculation.totalReturnPct,
+    };
+  }
+
+  private mapPositionCalculation(row: PositionCalculationRow): PositionCalculationRecord {
+    const calculation = JSON.parse(row.result_json) as PositionCalculationResult;
+    return {
+      id: row.id,
+      replayId: row.replay_id,
+      createdAt: row.created_at,
+      direction: calculation.config.direction,
+      leverage: calculation.config.leverage,
+      capital: calculation.initialCapital,
+      triggerCount: JSON.parse(row.trigger_indexes_json).length,
+      tradeCount: calculation.trades.length,
+      finalEquity: calculation.finalEquity,
+      totalNetPnl: calculation.totalNetPnl,
+      totalReturnPct: calculation.totalReturnPct,
+      config: JSON.parse(row.config_json) as PositionCalculatorConfig,
+      triggerIndexes: JSON.parse(row.trigger_indexes_json) as number[],
+      calculation,
     };
   }
 

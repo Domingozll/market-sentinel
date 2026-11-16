@@ -1,12 +1,13 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { EventEmitter } from 'node:events';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   type Candle,
   type ConditionEvaluation,
   type EventView,
   type Rule,
   type RuleDraft,
+  type PositionCalculatorConfig,
   TF_MS,
   TIMEFRAMES,
   MIN_HISTORY_BARS,
@@ -155,6 +156,32 @@ function replayWindowDays(raw: Record<string, unknown>): number {
 function replayPeriodInput(raw: Record<string, unknown>, now: number) {
   if (raw.period === undefined) return undefined;
   return normalizeReplayPeriod(raw.period, now);
+}
+
+function canonicalPositionConfig(config: PositionCalculatorConfig) {
+  const exit = (rule: PositionCalculatorConfig['target']) => ({
+    mode: rule.mode,
+    ...(rule.mode === 'price' ? { price: rule.price } : {}),
+    ...(rule.mode === 'percent' ? { percent: rule.percent } : {}),
+    ...(rule.mode === 'indicator' ? { series: rule.series } : {}),
+  });
+  return {
+    direction: config.direction,
+    capital: config.capital,
+    leverage: config.leverage,
+    feeRatePct: config.feeRatePct,
+    slippagePct: config.slippagePct,
+    target: exit(config.target),
+    stop: exit(config.stop),
+  };
+}
+
+function positionCacheKey(config: PositionCalculatorConfig, triggerIndexes: number[]): string {
+  return createHash('sha256').update(JSON.stringify({
+    algorithm: 'position-calc-v2',
+    config: canonicalPositionConfig(config),
+    triggerIndexes: [...triggerIndexes].sort((a, b) => a - b),
+  })).digest('hex');
 }
 
 export async function registerApiRoutes(app: FastifyInstance, services: ApiServices): Promise<void> {
@@ -443,6 +470,20 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     return { job };
   });
 
+  app.get('/api/replays/:id/position-calculations', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!store.getReplay(id)) return sendError(reply, new HttpError(404, '回放记录不存在'), 404);
+    const q = (request.query ?? {}) as Record<string, unknown>;
+    return { calculations: store.listPositionCalculations(id, intQuery(q.limit, 20)) };
+  });
+
+  app.get('/api/position-calculations/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const calculation = store.getPositionCalculation(id);
+    if (!calculation) return sendError(reply, new HttpError(404, '仓位计算记录不存在'), 404);
+    return { calculation };
+  });
+
   app.post('/api/replays/:id/position-calc', async (request, reply) => {
     const { id } = request.params as { id: string };
     const replay = store.getReplay(id);
@@ -453,13 +494,27 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
       if (!config || typeof config !== 'object') throw new PositionCalcError('缺少仓位计算参数');
       validatePositionConfig(config);
       const indexesRaw = raw.triggerIndexes;
-      const triggerIndexes = indexesRaw === undefined
+      const triggerIndexes = [...new Set(indexesRaw === undefined
         ? replay.result.triggers.map((_, index) => index)
-        : Array.isArray(indexesRaw) ? indexesRaw.map(Number) : [];
+        : Array.isArray(indexesRaw) ? indexesRaw.map(Number) : [])].sort((a, b) => a - b);
       if (!triggerIndexes.length) throw new PositionCalcError('请至少选择一个信号点');
+      for (const index of triggerIndexes) {
+        if (!Number.isInteger(index) || index < 0 || index >= replay.result.triggers.length) {
+          throw new PositionCalcError(`信号序号不合法：${index}`);
+        }
+      }
       const signalTimeframe = replay.result.signalTimeframe;
       const tfMs = TF_MS[signalTimeframe];
       const endTime = replay.period?.to ?? (replay.result.data.to + tfMs);
+      const cacheKey = positionCacheKey(config, triggerIndexes);
+      const cached = store.findPositionCalculation(id, cacheKey);
+      if (cached) {
+        return {
+          calculation: cached.calculation,
+          calculationId: cached.id,
+          cached: true,
+        };
+      }
       const firstTrigger = Math.min(...triggerIndexes.map((index) => replay.result.triggers[index]?.barOpenTime ?? Infinity));
       if (!Number.isFinite(firstTrigger)) throw new PositionCalcError('信号序号不合法');
       const loadFrom = Math.floor((firstTrigger - MIN_HISTORY_BARS * tfMs) / tfMs) * tfMs;
@@ -470,6 +525,7 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         timeframe: signalTimeframe,
         from: loadFrom,
         to: endTime,
+        strictRange: true,
         maxPages: Math.max(140, Math.ceil((endTime - loadFrom) / tfMs / 100) + 16),
       });
       const candles = loaded.candles.filter((candle) => candle.confirm);
@@ -521,10 +577,19 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         config,
         symbol: replay.symbol,
       });
-      return { calculation };
+      const saved = store.savePositionCalculation({
+        id: randomUUID(),
+        replayId: replay.id,
+        cacheKey,
+        config,
+        triggerIndexes,
+        calculation,
+        createdAt: Date.now(),
+      });
+      return { calculation, calculationId: saved.id, cached: false };
     } catch (error) {
       if (error instanceof PositionCalcError) return reply.code(400).send({ error: error.message });
-      if (error instanceof HistoryError) return reply.code(error.statusCode).send({ error: error.message });
+      if (error instanceof HistoryError) return reply.code(error.statusCode).send({ error: `仓位计算前补全信号周期数据失败：${error.message}` });
       return sendError(reply, new HttpError(502, `仓位计算失败：${safeError(error)}`), 502);
     }
   });

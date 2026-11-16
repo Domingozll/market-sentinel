@@ -8,6 +8,8 @@ import {
   type ConditionEvaluation,
   type ReplayJobView,
   type ReplayPeriod,
+  type PositionCalculationResult,
+  type PositionCalculatorConfig,
   type ReplayRecord,
   type ReplaySummary,
   type RuleView,
@@ -25,6 +27,7 @@ import {
 import { ErrorBanner, LoadingBlock, PageHeader } from '../components/ui';
 import { ReplayProChart } from '../components/chart/ReplayProChart';
 import { PositionCalculatorModal } from '../components/PositionCalculatorModal';
+import { PositionHistoryModal } from '../components/PositionHistoryModal';
 import type { ChartEventMarker } from '../lib/chart/types';
 
 const WINDOWS = [7, 14, 30] as const;
@@ -113,6 +116,11 @@ export function RuleReplayPage() {
   const [focusTimestamp, setFocusTimestamp] = useState<number | null>(null);
   const [selectedTriggers, setSelectedTriggers] = useState<number[]>([]);
   const [calculatorIndexes, setCalculatorIndexes] = useState<number[] | null>(null);
+  const [calculatorSeed, setCalculatorSeed] = useState<{
+    config: PositionCalculatorConfig;
+    calculation: PositionCalculationResult;
+  } | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [replays, setReplays] = useState<ReplaySummary[]>([]);
   const [selectedReplayId, setSelectedReplayId] = useState('');
   const [savedMeta, setSavedMeta] = useState<{ createdAt: number; ruleVersion: number } | null>(null);
@@ -160,6 +168,8 @@ export function RuleReplayPage() {
     setFocusTimestamp(null);
     setSelectedTriggers([]);
     setCalculatorIndexes(null);
+    setCalculatorSeed(null);
+    setHistoryOpen(false);
     setStale(false);
     if (replay.period) {
       setCustomMode(true);
@@ -523,10 +533,14 @@ export function RuleReplayPage() {
     }
   }
 
-  function openCalculator(indexes: number[]) {
+  function openCalculator(indexes: number[], seed: {
+    config: PositionCalculatorConfig;
+    calculation: PositionCalculationResult;
+  } | null = null) {
     if (!result || !selectedReplayId) return;
     const valid = [...new Set(indexes)].filter((index) => index >= 0 && index < result.triggers.length);
     if (!valid.length) return;
+    setCalculatorSeed(seed);
     setCalculatorIndexes(valid);
   }
 
@@ -834,6 +848,14 @@ export function RuleReplayPage() {
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
+                  data-testid="position-history-open"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  仓位历史
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
                   data-testid="replay-select-all"
                   onClick={() => setSelectedTriggers((previous) => previous.length === result.triggers.length ? [] : result.triggers.map((_, index) => index))}
                 >
@@ -958,7 +980,26 @@ export function RuleReplayPage() {
         replayId={selectedReplayId}
         result={result}
         selectedIndexes={calculatorIndexes ?? []}
-        onClose={() => setCalculatorIndexes(null)}
+        initialConfig={calculatorSeed?.config}
+        initialCalculation={calculatorSeed?.calculation}
+        onClose={() => {
+          setCalculatorIndexes(null);
+          setCalculatorSeed(null);
+        }}
+      />
+
+      <PositionHistoryModal
+        open={historyOpen}
+        replayId={selectedReplayId}
+        onClose={() => setHistoryOpen(false)}
+        onView={(record) => {
+          setSelectedTriggers(record.triggerIndexes);
+          setHistoryOpen(false);
+          openCalculator(record.triggerIndexes, {
+            config: record.config,
+            calculation: record.calculation,
+          });
+        }}
       />
 
       <div className="page-foot">

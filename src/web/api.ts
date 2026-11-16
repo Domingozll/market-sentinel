@@ -9,6 +9,9 @@ import type {
   ReplayPeriod,
   PositionCalculatorConfig,
   PositionCalculationResult,
+  PositionCalculationRecord,
+  PositionCalculationResponse,
+  PositionCalculationSummary,
   TrialDataInfo,
   Rule,
   RuleDraft,
@@ -183,10 +186,16 @@ export const api = {
     request<{ replays: ReplaySummary[] }>(`/api/rules/${ruleId}/replays?limit=${limit}`),
   replay: (id: string) => request<{ replay: ReplayRecord }>(`/api/replays/${encodeURIComponent(id)}`),
   positionCalc: (id: string, config: PositionCalculatorConfig, triggerIndexes: number[]) =>
-    request<{ calculation: PositionCalculationResult }>(`/api/replays/${encodeURIComponent(id)}/position-calc`, {
+    request<PositionCalculationResponse>(`/api/replays/${encodeURIComponent(id)}/position-calc`, {
       method: 'POST',
       body: JSON.stringify({ config, triggerIndexes }),
     }),
+  positionCalculations: (replayId: string, limit = 20) =>
+    request<{ calculations: PositionCalculationSummary[] }>(
+      `/api/replays/${encodeURIComponent(replayId)}/position-calculations?limit=${limit}`,
+    ),
+  positionCalculation: (id: string) =>
+    request<{ calculation: PositionCalculationRecord }>(`/api/position-calculations/${encodeURIComponent(id)}`),
   replayChartCandles: (id: string, timeframe: string) =>
     request<{
       replayId: string;

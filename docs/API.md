@@ -206,7 +206,15 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 - 批量按信号时间排序复利；所有选中信号都会计算，但始终保持单仓位：若下一选中信号早于当前持仓退出，按下一信号价格强制平仓当前仓位。结果会返回 `next-signal` 退出原因和强制平仓警告；权益归零后的信号才进入 `skipped`。每条交易返回 `symbol/direction/leverage/marginMode/entryAt/exitAt/durationMs/entryPrice/exitPrice/quantity/notional/initialMargin/maintenanceMargin/fundingFee/openFee/closeFee/fees/grossPnl/netPnl/roiPct/pnlOnNotionalPct/riskReward/liquidationPrice/equityBefore/equityAfter`；维持保证金和资金费返回 `null` 表示未建模。
 - 同一根 K 线同时触发止盈止损按止损优先；跳空按开盘价；未设置止盈止损时按区间最后收盘价；强平按逐仓保证金上限截断；未计资金费率、维持保证金和手续费等级差异。
 
-返回 `{ calculation: PositionCalculationResult }`。配置/信号序号不合法返回 400，回放或信号周期数据不存在返回 404/422。
+计算成功返回 `{ calculation, calculationId, cached }`。相同 `replayId + triggerIndexes + config` 会直接返回已保存结果，`cached=true`。计算前会分批补齐信号周期 K 线并严格校验完整性；仍缺数据返回 422，不会用缺口数据继续模拟。配置/信号序号不合法返回 400，回放/记录不存在返回 404。
+
+### `GET /api/replays/:id/position-calculations`
+
+返回该回放最近保存的仓位计算摘要列表（时间、方向/杠杆、本金、信号数、交易数、期末权益、总收益）。
+
+### `GET /api/position-calculations/:id`
+
+返回完整仓位计算记录，包括保存的配置、选中信号、交易明细和汇总。前端“仓位历史”用它恢复查看，不重新计算。
 
 ### `POST /api/rules/validate`
 

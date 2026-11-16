@@ -287,6 +287,31 @@ describe('saved rule historical replay', () => {
       payload: { config, triggerIndexes: [999] },
     });
     expect(bad.statusCode).toBe(400);
+
+    const repeat = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/replays/${run.body.replay.id}/position-calc`,
+      payload: { config, triggerIndexes: [0] },
+    });
+    expect(repeat.statusCode).toBe(200);
+    expect(repeat.body.cached).toBe(true);
+    expect(repeat.body.calculationId).toBe(one.body.calculationId);
+
+    const history = await jsonRequest(runtime.runtime, {
+      method: 'GET',
+      url: `/api/replays/${run.body.replay.id}/position-calculations?limit=10`,
+    });
+    expect(history.statusCode).toBe(200);
+    expect(history.body.calculations.length).toBeGreaterThanOrEqual(1);
+    expect(history.body.calculations[0].triggerCount).toBe(1);
+
+    const detail = await jsonRequest(runtime.runtime, {
+      method: 'GET',
+      url: `/api/position-calculations/${one.body.calculationId}`,
+    });
+    expect(detail.statusCode).toBe(200);
+    expect(detail.body.calculation.config).toMatchObject({ direction: 'long', leverage: 5 });
+    expect(detail.body.calculation.triggerIndexes).toEqual([0]);
   });
 
   it('rejects invalid symbols/windows and unknown rules', async () => {

@@ -564,6 +564,32 @@ export interface PositionCalculationResult {
   warnings: string[];
 }
 
+export interface PositionCalculationSummary {
+  id: string;
+  replayId: string;
+  createdAt: number;
+  direction: PositionDirection;
+  leverage: number;
+  capital: number;
+  triggerCount: number;
+  tradeCount: number;
+  finalEquity: number;
+  totalNetPnl: number;
+  totalReturnPct: number;
+}
+
+export interface PositionCalculationRecord extends PositionCalculationSummary {
+  config: PositionCalculatorConfig;
+  triggerIndexes: number[];
+  calculation: PositionCalculationResult;
+}
+
+export interface PositionCalculationResponse {
+  calculation: PositionCalculationResult;
+  calculationId: string;
+  cached: boolean;
+}
+
 export const AGGREGATE_STATUS_LABEL: Record<AggregateRuleStatus, string> = {
   paused: '已暂停',
   warming: '预热中',

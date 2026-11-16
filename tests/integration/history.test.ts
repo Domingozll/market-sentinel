@@ -76,6 +76,24 @@ describe('local-first historical data', () => {
     store.close();
   });
 
+  it('rejects an incomplete strict range after attempting batch fill', async () => {
+    const store = makeStore();
+    const full = history(100);
+    const local = full.slice(20);
+    store.upsertCandles(local);
+    const market = marketWith(local);
+    await expect(loadLocalFirstHistory({
+      store,
+      market,
+      instId: symbol,
+      timeframe,
+      from: full[0].openTime,
+      to: full[99].openTime + tfMs,
+      strictRange: true,
+    })).rejects.toBeInstanceOf(HistoryError);
+    store.close();
+  });
+
   it('supplements a missing tail and then reuses the completed local range', async () => {
     const store = makeStore();
     const candles = history(100);

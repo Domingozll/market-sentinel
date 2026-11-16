@@ -522,6 +522,12 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(modal.getByTestId('position-calc-single')).toContainText('盈亏比');
     await modal.locator('.modal-foot button').click();
 
+    await page.getByTestId('position-history-open').click();
+    await expect(page.getByTestId('position-history')).toBeVisible();
+    await page.getByTestId('position-history-view').first().click();
+    await expect(page.getByTestId('position-calc-summary')).toBeVisible();
+    await page.locator('.modal-card .modal-foot button').click();
+
     await page.getByTestId('replay-select-0').check();
     await page.getByTestId('replay-select-1').check();
     await page.getByTestId('replay-calc-selected').click();
