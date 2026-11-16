@@ -266,6 +266,41 @@ export function RuleEditorPage() {
     }
   }
 
+  async function saveClosed() {
+    const errors: string[] = [];
+    if (draft.name.trim().length < 2 || draft.name.trim().length > 40) errors.push('规则名称需为 2–40 个字符');
+    if (!draft.symbols.length) errors.push('至少选择一个交易品种');
+    if (!conditions.length) errors.push('至少添加一个条件');
+    if (errors.length) {
+      setSaveErrors(errors);
+      showToast(errors[0], 'error');
+      return;
+    }
+    setSaving(true);
+    setSaveErrors([]);
+    try {
+      const payload = { ...toPayload(draft), enabled: false };
+      if (isEdit && id) {
+        await api.updateRule(id, payload);
+        setDraft((previous) => ({ ...previous, enabled: false }));
+        await refresh();
+        showToast('规则已保存，保持关闭状态。', 'success');
+      } else {
+        const { rule } = await api.createRule(payload);
+        setDraft((previous) => ({ ...previous, enabled: false }));
+        await refresh();
+        showToast('规则已保存，保持关闭状态。', 'success');
+        navigate(`/rules/${rule.id}/edit`, { replace: true });
+      }
+    } catch (error) {
+      const messages = validationMessages(error);
+      setSaveErrors(messages);
+      showToast(messages[0] ?? '保存失败', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function openTrial() {
     if (!draft.symbols.length) {
       showToast('请先选择至少一个品种', 'error');
@@ -361,6 +396,10 @@ export function RuleEditorPage() {
           ) : null}
           <button type="button" className="btn btn-secondary" onClick={() => void openTrial()}>
             <PlayCircle size={14} /> 试跑
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => void saveClosed()} disabled={saving} data-testid="save-rule-closed">
+            {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
+            仅保存（关闭）
           </button>
           <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={saving} data-testid="save-rule-top">
             {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}

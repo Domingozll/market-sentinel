@@ -3,11 +3,14 @@ import type { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import {
   type Candle,
+  type ConditionEvaluation,
   type EventView,
   type Rule,
   type RuleDraft,
   TF_MS,
   TIMEFRAMES,
+  MIN_HISTORY_BARS,
+  normalizeParams,
   type Timeframe,
 } from '../../shared/types';
 import { exchangeDayStartUtc8, type AppConfig } from '../config';
@@ -24,7 +27,17 @@ import { parseRuleInput } from '../rules/schema';
 import { ruleSummary } from '../rules/summary';
 import { toRuleView } from '../rules/service';
 import { runTrial, TrialError } from '../trial';
+import { calculatePositions, PositionCalcError, validatePositionConfig } from '../positionCalculator';
+import { computeSeries } from '../indicators';
 import { HistoryError, loadLocalFirstHistory } from '../history';
+import { normalizeReplayPeriod, ReplayPeriodError } from '../replayPeriod';
+import {
+  estimateReplayBars,
+  estimateReplaySeconds,
+  MAX_REPLAY_BARS_PER_TIMEFRAME,
+  startReplayJob,
+  type ReplayExecutionParams,
+} from '../replayJob';
 
 export interface ApiServices {
   config: AppConfig;
@@ -129,6 +142,19 @@ function replayChartTimeframe(raw: unknown): Timeframe | null {
   if (raw === undefined || raw === null || raw === '') return null;
   if (typeof raw !== 'string' || !TIMEFRAMES.includes(raw as Timeframe)) return null;
   return raw as Timeframe;
+}
+
+function replayWindowDays(raw: Record<string, unknown>): number {
+  const value = Number(raw.windowDays ?? 7);
+  if (!Number.isFinite(value) || value < 1 || value > 30) {
+    throw new HttpError(400, '回放窗口必须在 1–30 天之间');
+  }
+  return Math.round(value);
+}
+
+function replayPeriodInput(raw: Record<string, unknown>, now: number) {
+  if (raw.period === undefined) return undefined;
+  return normalizeReplayPeriod(raw.period, now);
 }
 
 export async function registerApiRoutes(app: FastifyInstance, services: ApiServices): Promise<void> {
@@ -305,22 +331,31 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     if (!symbol || !rule.symbols.includes(symbol)) {
       return reply.code(400).send({ error: '请选择规则内的一个回放品种' });
     }
-    const windowDays = Number(raw.windowDays ?? 7);
-    if (!Number.isFinite(windowDays) || windowDays < 1 || windowDays > 30) {
-      return reply.code(400).send({ error: '回放窗口必须在 1–30 天之间' });
-    }
     const chartTimeframe = replayChartTimeframe(raw.chartTimeframe);
     if (raw.chartTimeframe !== undefined && !chartTimeframe) {
       return reply.code(400).send({ error: '图表周期不合法' });
     }
     try {
+      const period = replayPeriodInput(raw, market.exchangeNow());
+      const windowDays = period ? 7 : replayWindowDays(raw);
+      const params: ReplayExecutionParams = {
+        symbol,
+        windowDays,
+        chartTimeframe: chartTimeframe ?? '5m',
+        period,
+      };
+      const estimate = estimateReplayBars(rule, params, market.exchangeNow());
+      if (estimate.maxBars > MAX_REPLAY_BARS_PER_TIMEFRAME) {
+        return reply.code(422).send({ error: `所选时段需要 ${estimate.maxBars} 根 K 线，超过单周期上限 ${MAX_REPLAY_BARS_PER_TIMEFRAME}；请缩短范围或使用更大周期` });
+      }
       const result = await runTrial({
         draft: rule,
         symbol,
-        windowDays: Math.round(windowDays),
+        windowDays,
         chartTimeframe: chartTimeframe ?? undefined,
         market,
         store,
+        period,
       });
       const replay = store.saveReplay({
         id: randomUUID(),
@@ -332,13 +367,50 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         chartTimeframe: result.timeframe,
         signalTimeframe: result.signalTimeframe,
         result,
+        period: result.period,
         createdAt: Date.now(),
       });
       return reply.code(201).send({ replay });
     } catch (error) {
+      if (error instanceof ReplayPeriodError) return reply.code(400).send({ error: error.message });
       if (error instanceof HistoryError) return reply.code(error.statusCode).send({ error: error.message });
       if (error instanceof TrialError) return reply.code(error.statusCode).send({ error: error.message });
       return sendError(reply, new HttpError(502, `回放失败：${safeError(error)}`), 502);
+    }
+  });
+
+  app.post('/api/rules/:id/replays/async', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const rule = store.getRule(id);
+    if (!rule || rule.archivedAt) return sendError(reply, new HttpError(404, '规则不存在'), 404);
+    const raw = bodyObject(request.body ?? {});
+    const symbol = typeof raw.symbol === 'string' ? raw.symbol.trim().toUpperCase() : '';
+    if (!symbol || !rule.symbols.includes(symbol)) {
+      return reply.code(400).send({ error: '请选择规则内的一个回放品种' });
+    }
+    const chartTimeframe = replayChartTimeframe(raw.chartTimeframe);
+    if (raw.chartTimeframe !== undefined && !chartTimeframe) {
+      return reply.code(400).send({ error: '图表周期不合法' });
+    }
+    try {
+      const period = replayPeriodInput(raw, market.exchangeNow());
+      const windowDays = period ? 7 : replayWindowDays(raw);
+      const params: ReplayExecutionParams = {
+        symbol,
+        windowDays,
+        chartTimeframe: chartTimeframe ?? '5m',
+        period,
+      };
+      const estimate = estimateReplayBars(rule, params, market.exchangeNow());
+      if (estimate.maxBars > MAX_REPLAY_BARS_PER_TIMEFRAME) {
+        return reply.code(422).send({ error: `所选时段需要 ${estimate.maxBars} 根 K 线，超过单周期上限 ${MAX_REPLAY_BARS_PER_TIMEFRAME}；请缩短范围或使用更大周期` });
+      }
+      const estimatedSeconds = estimateReplaySeconds(rule, params, market.exchangeNow());
+      const job = startReplayJob({ store, market, rule, params, estimatedSeconds });
+      return reply.code(202).send({ job });
+    } catch (error) {
+      if (error instanceof ReplayPeriodError) return reply.code(400).send({ error: error.message });
+      return sendError(reply, new HttpError(400, `创建回放任务失败：${safeError(error)}`), 400);
     }
   });
 
@@ -356,6 +428,104 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     return { replay };
   });
 
+  app.get('/api/rules/:id/replay-jobs/active', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!store.getRule(id)) return sendError(reply, new HttpError(404, '规则不存在'), 404);
+    return { job: store.getActiveReplayJob(id) };
+  });
+
+  app.get('/api/replay-jobs/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const job = store.getReplayJob(id);
+    if (!job) return sendError(reply, new HttpError(404, '回放任务不存在'), 404);
+    return { job };
+  });
+
+  app.post('/api/replays/:id/position-calc', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const replay = store.getReplay(id);
+    if (!replay) return sendError(reply, new HttpError(404, '回放记录不存在'), 404);
+    const raw = bodyObject(request.body ?? {});
+    try {
+      const config = raw.config as Parameters<typeof validatePositionConfig>[0];
+      if (!config || typeof config !== 'object') throw new PositionCalcError('缺少仓位计算参数');
+      validatePositionConfig(config);
+      const indexesRaw = raw.triggerIndexes;
+      const triggerIndexes = indexesRaw === undefined
+        ? replay.result.triggers.map((_, index) => index)
+        : Array.isArray(indexesRaw) ? indexesRaw.map(Number) : [];
+      if (!triggerIndexes.length) throw new PositionCalcError('请至少选择一个信号点');
+      const signalTimeframe = replay.result.signalTimeframe;
+      const tfMs = TF_MS[signalTimeframe];
+      const endTime = replay.period?.to ?? (replay.result.data.to + tfMs);
+      const firstTrigger = Math.min(...triggerIndexes.map((index) => replay.result.triggers[index]?.barOpenTime ?? Infinity));
+      if (!Number.isFinite(firstTrigger)) throw new PositionCalcError('信号序号不合法');
+      const loadFrom = Math.floor((firstTrigger - MIN_HISTORY_BARS * tfMs) / tfMs) * tfMs;
+      const loaded = await loadLocalFirstHistory({
+        store,
+        market,
+        instId: replay.symbol,
+        timeframe: signalTimeframe,
+        from: loadFrom,
+        to: endTime,
+        maxPages: Math.max(140, Math.ceil((endTime - loadFrom) / tfMs / 100) + 16),
+      });
+      const candles = loaded.candles.filter((candle) => candle.confirm);
+      if (!candles.length) throw new HistoryError('没有可用于仓位计算的信号周期 K 线', 422);
+
+      // Indicator exits are computed from the signal-timeframe candles, not
+      // from an arbitrary different chart timeframe. Enrich trigger snapshots
+      // with a synthetic price series value when a configured exit asks for it.
+      const enrichedTriggers = replay.result.triggers.map((trigger) => ({
+        ...trigger,
+        conditions: [...trigger.conditions],
+      }));
+      const indicatorSeries = [...new Set([
+        config.target.mode === 'indicator' ? config.target.series : null,
+        config.stop.mode === 'indicator' ? config.stop.series : null,
+      ].filter((series): series is NonNullable<typeof series> => Boolean(series)))];
+      for (const series of indicatorSeries) {
+        const params = normalizeParams(series, undefined);
+        const values = computeSeries(candles, series, params);
+        for (let index = 0; index < enrichedTriggers.length; index++) {
+          const trigger = enrichedTriggers[index];
+          const candleIndex = candles.findIndex((candle) => candle.openTime === trigger.barOpenTime);
+          if (candleIndex < 0) continue;
+          const value = values[candleIndex];
+          if (value === null || value === undefined || !Number.isFinite(value)) continue;
+          const snapshot: ConditionEvaluation = {
+            conditionId: `position-${series}-${index}`,
+            timeframe: signalTimeframe,
+            leftSeries: series,
+            rightSeries: null,
+            leftValue: value,
+            rightValue: null,
+            cmp: 'gte',
+            truth: true,
+            barOpenTime: trigger.barOpenTime,
+            barCloseTime: trigger.barCloseTime,
+            leftParams: params,
+            rightParams: null,
+          };
+          trigger.conditions.push(snapshot);
+        }
+      }
+      const calculation = calculatePositions({
+        triggers: enrichedTriggers,
+        triggerIndexes,
+        candles,
+        timeframeMs: tfMs,
+        endTime,
+        config,
+      });
+      return { calculation };
+    } catch (error) {
+      if (error instanceof PositionCalcError) return reply.code(400).send({ error: error.message });
+      if (error instanceof HistoryError) return reply.code(error.statusCode).send({ error: error.message });
+      return sendError(reply, new HttpError(502, `仓位计算失败：${safeError(error)}`), 502);
+    }
+  });
+
   app.get('/api/replays/:id/chart-candles', async (request, reply) => {
     const { id } = request.params as { id: string };
     const replay = store.getReplay(id);
@@ -365,8 +535,8 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     if (!TIMEFRAMES.includes(timeframe as Timeframe)) {
       return reply.code(400).send({ error: 'K 线周期不合法' });
     }
-    const to = replay.result.data.to + TF_MS[replay.result.timeframe];
-    const from = replay.result.data.to - replay.windowDays * 86_400_000;
+    const to = replay.period?.to ?? (replay.result.data.to + TF_MS[replay.result.timeframe]);
+    const from = replay.period?.from ?? (replay.result.data.to - replay.windowDays * 86_400_000);
     try {
       const history = await loadLocalFirstHistory({
         store,

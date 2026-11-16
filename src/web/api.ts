@@ -5,6 +5,10 @@ import type {
   PublicSettings,
   ReplayRecord,
   ReplaySummary,
+  ReplayJobView,
+  ReplayPeriod,
+  PositionCalculatorConfig,
+  PositionCalculationResult,
   TrialDataInfo,
   Rule,
   RuleDraft,
@@ -163,14 +167,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ symbol, windowDays, ...(chartTimeframe ? { chartTimeframe } : {}) }),
     }),
-  createReplay: (ruleId: string, payload: { symbol: string; windowDays: number; chartTimeframe: string }) =>
+  createReplay: (ruleId: string, payload: { symbol: string; windowDays: number; chartTimeframe: string; period?: ReplayPeriodInput }) =>
     request<{ replay: ReplayRecord }>(`/api/rules/${ruleId}/replays`, {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  createReplayAsync: (ruleId: string, payload: { symbol: string; windowDays?: number; chartTimeframe: string; period?: ReplayPeriodInput }) =>
+    request<{ job: ReplayJobView }>(`/api/rules/${ruleId}/replays/async`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  replayJob: (id: string) => request<{ job: ReplayJobView }>(`/api/replay-jobs/${encodeURIComponent(id)}`),
+  activeReplayJob: (ruleId: string) => request<{ job: ReplayJobView | null }>(`/api/rules/${encodeURIComponent(ruleId)}/replay-jobs/active`),
   replays: (ruleId: string, limit = 20) =>
     request<{ replays: ReplaySummary[] }>(`/api/rules/${ruleId}/replays?limit=${limit}`),
   replay: (id: string) => request<{ replay: ReplayRecord }>(`/api/replays/${encodeURIComponent(id)}`),
+  positionCalc: (id: string, config: PositionCalculatorConfig, triggerIndexes: number[]) =>
+    request<{ calculation: PositionCalculationResult }>(`/api/replays/${encodeURIComponent(id)}/position-calc`, {
+      method: 'POST',
+      body: JSON.stringify({ config, triggerIndexes }),
+    }),
   replayChartCandles: (id: string, timeframe: string) =>
     request<{
       replayId: string;
@@ -232,4 +248,13 @@ export const api = {
   status: () => request<AppStatus>('/api/status'),
 };
 
-export type { Rule, RuleView, RuleDraft, TriggerMode, EventView, TrialResult, ReplayRecord, ReplaySummary };
+export type { Rule, RuleView, RuleDraft, TriggerMode, EventView, TrialResult, ReplayRecord, ReplaySummary, ReplayJobView, ReplayPeriod };
+
+export interface ReplayPeriodInput {
+  startDate: string;
+  endDate: string;
+  timezone: string;
+  allDay: boolean;
+  dailyStart?: string;
+  dailyEnd?: string;
+}

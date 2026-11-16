@@ -249,7 +249,9 @@ export class OkxRestClient {
     maxPages = 140,
   ): Promise<Candle[]> {
     const tf = TF_MS[timeframe];
-    let cursor: number | undefined;
+    // Start at the requested historical cutoff. Without this a custom replay
+    // ending months ago would page backward from "now" and waste the page cap.
+    let cursor: number | undefined = now;
     let pages = 0;
     let oldest = Number.POSITIVE_INFINITY;
     const all = new Map<number, Candle>();

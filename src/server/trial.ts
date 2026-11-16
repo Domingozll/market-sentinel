@@ -2,6 +2,7 @@ import {
   type ConditionEvaluation,
   type Rule,
   type RuleDraft,
+  type ReplayPeriod,
   type Timeframe,
   type TrialResult,
   MIN_HISTORY_BARS,
@@ -16,6 +17,7 @@ import { compareValues, computeSeries, type Series } from './indicators';
 import { collectTimeframes, evaluateExpression, flattenConditions, shortestTimeframe } from './rules/schema';
 import { loadLocalFirstHistory, type HistoryLoad } from './history';
 import { isUsMarketTradingDay } from './usMarketCalendar';
+import { isWithinDailyWindow } from './replayPeriod';
 
 export class TrialError extends Error {
   statusCode: number;
@@ -64,6 +66,8 @@ export async function runTrial(options: {
   market: AppMarket;
   store?: Store;
   now?: number;
+  /** Exact date range + optional daily time window for custom replay. */
+  period?: ReplayPeriod;
 }): Promise<TrialResult> {
   const { draft, market } = options;
   const ruleTimeframes = collectTimeframes(draft.expression);
@@ -72,12 +76,20 @@ export async function runTrial(options: {
   const requestedTimeframes = [...new Set<Timeframe>([...ruleTimeframes, chartTimeframe])];
   if (!draft.symbols.includes(options.symbol)) throw new TrialError('试跑品种不在规则范围内');
   const maxDays = maxWindowDays(requestedTimeframes);
-  const windowDays = clampWindow(options.windowDays, maxDays);
-  const now = options.now ?? market.exchangeNow();
-  const windowStart = now - windowDays * 86_400_000;
+  const marketNow = options.now ?? market.exchangeNow();
+  const period = options.period;
+  const windowStart = period ? period.from : marketNow - clampWindow(options.windowDays, maxDays) * 86_400_000;
+  const windowEnd = period ? Math.min(period.to, marketNow) : marketNow;
+  if (windowEnd <= windowStart) throw new TrialError('回放结束时间必须晚于开始时间');
+  const windowDays = period
+    ? Math.max(0.01, Number(((windowEnd - windowStart) / 86_400_000).toFixed(3)))
+    : clampWindow(options.windowDays, maxDays);
   const warnings: string[] = [];
-  if (windowDays !== options.windowDays) {
+  if (!period && windowDays !== options.windowDays) {
     warnings.push(`该周期组合最多试跑 ${maxDays} 天，已自动缩短窗口`);
+  }
+  if (period) {
+    warnings.push(`自定义回放：${period.allDay ? '全天' : `${String(Math.floor(period.dailyStartMinute / 60)).padStart(2, '0')}:${String(period.dailyStartMinute % 60).padStart(2, '0')}–${String(Math.floor(period.dailyEndMinute / 60)).padStart(2, '0')}:${String(period.dailyEndMinute % 60).padStart(2, '0')}`}（${period.timezone}），信号仅在所选时段内生成`);
   }
   if (draft.triggerMode === 'intrabar') {
     warnings.push('历史盘中 tick 无法还原，试跑按收盘确认口径计算');
@@ -100,23 +112,25 @@ export async function runTrial(options: {
             instId: options.symbol,
             timeframe,
             from: warmupFrom,
-            to: now,
+            to: windowEnd,
+            strictRange: Boolean(period),
+            maxPages: Math.max(140, Math.ceil((windowEnd - warmupFrom) / TF_MS[timeframe] / 100) + 16),
           })
         : {
-            candles: await market.fetchHistory(options.symbol, timeframe, warmupFrom, now),
+            candles: await market.fetchHistory(options.symbol, timeframe, warmupFrom, windowEnd),
             source: 'remote' as const,
             localBars: 0,
             fetchedBars: 0,
             coverage: 1,
             gaps: 0,
             from: warmupFrom,
-            to: now,
+            to: windowEnd,
             requestedFrom: warmupFrom,
-            requestedTo: now,
+            requestedTo: windowEnd,
           };
       const closed = loaded.candles
         .filter((candle) => candle.confirm)
-        .filter((candle) => candle.openTime + TF_MS[timeframe] <= now)
+        .filter((candle) => candle.openTime + TF_MS[timeframe] <= windowEnd)
         .sort((a, b) => a.openTime - b.openTime);
       historyLoads.set(timeframe, {
         ...loaded,
@@ -174,7 +188,7 @@ export async function runTrial(options: {
   for (const timeframe of ruleTimeframes) {
     const history = histories.get(timeframe)!;
     for (const closeTime of history.closeTimes) {
-      if (closeTime > windowStart && closeTime <= now) allEventTimes.add(closeTime);
+      if (closeTime > windowStart && closeTime <= windowEnd) allEventTimes.add(closeTime);
     }
   }
   // Sampling every higher timeframe close is enough for a close-confirmed trial.
@@ -235,7 +249,8 @@ export async function runTrial(options: {
     }
     if (!previousTruth && result.truth) {
       const usMarketAllowed = !draft.skipUsNonTradingDays || isUsMarketTradingDay(eventTime);
-      if (usMarketAllowed) {
+      const dailyWindowAllowed = !period || isWithinDailyWindow(eventTime, period);
+      if (usMarketAllowed && dailyWindowAllowed) {
         const cooldownMs = draft.cooldownSec * 1000;
         if (lastTriggerAt === null || eventTime - lastTriggerAt >= cooldownMs) {
           triggerCount++;
@@ -263,11 +278,14 @@ export async function runTrial(options: {
 
   const chartHistory = histories.get(chartTimeframe)!;
   const chartCandlesAll = chartHistory.candles.filter(
-    (candle) => candle.openTime + TF_MS[chartTimeframe] > windowStart && candle.openTime < now,
+    (candle) => candle.openTime + TF_MS[chartTimeframe] > windowStart && candle.openTime < windowEnd,
   );
   // Keep the whole replay window so every listed trigger has a candle to anchor to.
   // Valid windows top out around 10k 1m bars / 8.6k 5m bars.
   const chartCandles = chartCandlesAll.slice(-12_000);
+  if (chartCandlesAll.length > chartCandles.length) {
+    warnings.push(`图表仅展示最近 ${chartCandles.length} 根 ${chartTimeframe} K 线；更早的触发仍保留在清单中`);
+  }
   const boll = computeSeries(
     chartCandles,
     'bb.upper',
@@ -292,6 +310,7 @@ export async function runTrial(options: {
     timeframe: chartTimeframe,
     signalTimeframe: referenceTimeframe,
     data: dataInfo,
+    period,
     triggers,
     triggersTruncated: triggerCount > triggers.length,
     candles: chartCandles.map((candle) => ({

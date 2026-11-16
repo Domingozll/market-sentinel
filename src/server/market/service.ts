@@ -493,8 +493,8 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
     return filtered.slice(0, 80);
   }
 
-  async fetchHistory(instId: string, timeframe: Timeframe, from: number, now = this.exchangeNow()): Promise<Candle[]> {
-    return this.rest.fetchHistoryWindow(instId, timeframe, from, now);
+  async fetchHistory(instId: string, timeframe: Timeframe, from: number, now = this.exchangeNow(), maxPages = 140): Promise<Candle[]> {
+    return this.rest.fetchHistoryWindow(instId, timeframe, from, now, maxPages);
   }
 
   private reportError(error: unknown): void {

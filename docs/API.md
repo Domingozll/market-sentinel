@@ -181,6 +181,33 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 创建一份禁用状态的副本。
 
+### `POST /api/replays/:id/position-calc`
+
+按回放信号点计算单笔或批量复利仓位结果。使用已保存回放的 `signalTimeframe` K 线，从每个信号 K 线收盘后开始模拟，不会使用图表周期数据替代。
+
+```json
+{
+  "config": {
+    "direction": "long",
+    "capital": 1000,
+    "leverage": 5,
+    "feeRatePct": 0.05,
+    "slippagePct": 0.02,
+    "target": { "mode": "percent", "percent": 2 },
+    "stop": { "mode": "indicator", "series": "bb.lower" }
+  },
+  "triggerIndexes": [0, 3, 5]
+}
+```
+
+- `target`/`stop` 的 `mode`：`none | price | percent | indicator`。`indicator` 可取信号周期上的任意价格类指标（价格/Bollinger 等），服务端按默认参数在触发 K 线计算，不依赖图表周期。
+- `price` 为绝对价格；`percent` 为相对开仓价的正百分比；`indicator` 的 `series` 必须是价格类指标，并取该信号条件快照里的值。
+- 默认单边手续费 0.05%、单边滑点 0.02%；手续费和滑点均参与净收益和盈亏比计算。
+- 批量按信号时间排序复利；与上一笔持仓重叠的信号跳过，返回在 `skipped` 中。每条交易计算开仓/平仓价、数量、名义仓位、退出原因、毛/净盈亏、手续费、收益率、盈亏比和估算强平价。
+- 同一根 K 线同时触发止盈止损按止损优先；跳空按开盘价；未设置止盈止损时按区间最后收盘价；强平按逐仓保证金上限截断；未计资金费率、维持保证金和手续费等级差异。
+
+返回 `{ calculation: PositionCalculationResult }`。配置/信号序号不合法返回 400，回放或信号周期数据不存在返回 404/422。
+
 ### `POST /api/rules/validate`
 
 只校验，不保存。
@@ -316,6 +343,59 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 记录保存在本机 SQLite，包含完整 `TrialResult` 快照；前端进入回放页时优先读取最近记录，不再自动运行。
 
+自定义日期/每日时段可以传 `period`。同步接口支持小范围，但 Web UI 对自定义范围使用下面的异步接口：
+
+```json
+{
+  "symbol": "BTC-USDT-SWAP",
+  "chartTimeframe": "15m",
+  "period": {
+    "startDate": "2026-11-01",
+    "endDate": "2026-11-16",
+    "timezone": "Asia/Shanghai",
+    "allDay": false,
+    "dailyStart": "09:30",
+    "dailyEnd": "16:00"
+  }
+}
+```
+
+- `startDate` / `endDate` 为所选时区的闭区间自然日；`timezone` 为 IANA 时区。
+- `allDay=true` 时忽略 `dailyStart`/`dailyEnd`；否则每日时段按同一时区筛选，支持跨午夜（如 `22:00`–`06:00`）。
+- 自定义范围最多 366 天，单个周期估算最多 120,000 根；超出返回 422。
+- 自定义范围要求历史 K 线完整；仅允许当前最后一根因交易所延迟暂缺。内部缺口/历史不足返回 422。
+
+### `POST /api/rules/:id/replays/async`
+
+按自定义时段创建后台回放任务，立即返回 `202`：
+
+```json
+{
+  "job": {
+    "id": "…",
+    "ruleId": "…",
+    "status": "queued",
+    "phase": "排队中",
+    "estimatedSeconds": 48,
+    "error": null,
+    "replayId": null,
+    "createdAt": 1794211800000,
+    "startedAt": null,
+    "finishedAt": null
+  }
+}
+```
+
+任务会按 OKX 公共历史接口每页 100 根、客户端 130ms 限流分批补全，并写入本地 SQLite；完成后自动保存与同步接口相同结构的回放记录。`estimatedSeconds` 是保守预估，实际耗时取决于本地缓存命中量、网络和补数大小。
+
+### `GET /api/replay-jobs/:id`
+
+返回 `{ job }`；`status` 为 `queued | processing | completed | failed`。完成后 `replayId` 指向已保存回放，失败时 `error` 为原因。服务重启会把未完成任务标记为 `failed`。
+
+### `GET /api/rules/:id/replay-jobs/active`
+
+返回该规则当前仍在排队/处理的最新任务 `{ job: ReplayJobView | null }`；前端刷新回放页时用它恢复进度提示。
+
 ### `GET /api/rules/:id/replays`
 
 查询参数 `limit`（1–100，默认 20）。返回 `{ replays: ReplaySummary[] }`，不含完整结果。
@@ -350,7 +430,7 @@ GET /api/replays/:id/chart-candles?timeframe=15m
 }
 ```
 
-图表周期必须属于 `TIMEFRAMES`；行情同样走本地优先和增量补齐。前端在 K 线工具栏内切换周期时调用此接口，仅改变视图；需要保存新周期结果时再调用 `/replays`。
+图表周期必须属于 `TIMEFRAMES`；行情同样走本地优先和增量补齐。自定义回放会按保存的 `period.from`/`period.to` 加载同一日期区间。前端在 K 线工具栏内切换周期时调用此接口，仅改变视图；需要保存新周期结果时再调用 `/replays`。
 
 ## 事件
 

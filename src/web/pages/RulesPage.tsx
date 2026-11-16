@@ -232,7 +232,7 @@ function RuleRow({
       <Toggle checked={rule.enabled} label={`启用规则 ${rule.name}`} disabled={busy} onChange={onToggle} />
       <button type="button" className="rule-main-btn" onClick={onEdit}>
         <div className="name">
-          {rule.name}
+          <span className="rule-name-text" title={rule.name}>{rule.name}</span>
           {rule.symbols.slice(0, 3).map((symbol) => <span className="symbol-tag" key={symbol}>{symbol}</span>)}
           {rule.symbols.length > 3 ? <span className="symbol-tag">+{rule.symbols.length - 3}</span> : null}
           {rule.skipUsNonTradingDays ? <span className="rule-filter-badge">过滤美股非交易日</span> : null}

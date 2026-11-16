@@ -207,6 +207,74 @@ describe('saved rule historical replay', () => {
     expect(old.body.replay.result.triggerCount).toBeGreaterThan(0);
   });
 
+  it('calculates single and batch position PnL from signal-timeframe candles', async () => {
+    runtime = await buildTestRuntime({ market: preparedMarket() });
+    const created = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: '/api/rules',
+      payload: { ...draft, enabled: true },
+    });
+    const id = created.body.rule.id as string;
+    const run = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/rules/${id}/replays`,
+      payload: { symbol, windowDays: 1, chartTimeframe: '5m' },
+    });
+    expect(run.statusCode).toBe(201);
+    expect(run.body.replay.result.triggers.length).toBeGreaterThan(1);
+
+    const config = {
+      direction: 'long',
+      capital: 1_000,
+      leverage: 5,
+      feeRatePct: 0.05,
+      slippagePct: 0.02,
+      target: { mode: 'percent', percent: 1 },
+      stop: { mode: 'percent', percent: 1 },
+    };
+    const one = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/replays/${run.body.replay.id}/position-calc`,
+      payload: { config, triggerIndexes: [0] },
+    });
+    expect(one.statusCode).toBe(200);
+    expect(one.body.calculation.trades).toHaveLength(1);
+    expect(one.body.calculation.trades[0].entryPrice).toBeGreaterThan(0);
+    expect(Number.isFinite(one.body.calculation.trades[0].netPnl)).toBe(true);
+    expect(one.body.calculation.trades[0].equityBefore).toBe(1_000);
+
+    const batch = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/replays/${run.body.replay.id}/position-calc`,
+      payload: { config, triggerIndexes: [0, 1, 2] },
+    });
+    expect(batch.statusCode).toBe(200);
+    expect(batch.body.calculation.trades.length + batch.body.calculation.skipped.length).toBe(3);
+    expect(batch.body.calculation.finalEquity).toBeGreaterThanOrEqual(0);
+
+    const indicator = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/replays/${run.body.replay.id}/position-calc`,
+      payload: {
+        config: {
+          ...config,
+          target: { mode: 'indicator', series: 'bb.upper' },
+          stop: { mode: 'none' },
+        },
+        triggerIndexes: [0],
+      },
+    });
+    expect(indicator.statusCode).toBe(200);
+    expect(indicator.body.calculation.trades[0].targetPrice).not.toBeNull();
+
+    const bad = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/replays/${run.body.replay.id}/position-calc`,
+      payload: { config, triggerIndexes: [999] },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('rejects invalid symbols/windows and unknown rules', async () => {
     runtime = await buildTestRuntime({ market: preparedMarket() });
     const created = await jsonRequest(runtime.runtime, {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FakeMarket, makeCandles } from '../helpers/fake-market';
 import { runTrial, TrialError } from '../../src/server/trial';
 import { bollingerBands } from '../../src/server/indicators';
-import type { ConditionGroup, RuleDraft } from '../../src/shared/types';
+import type { ConditionGroup, ReplayPeriod, RuleDraft } from '../../src/shared/types';
 
 const symbol = 'BTC-USDT-SWAP';
 const endClose = Date.parse('2026-11-09T16:00:00+08:00');
@@ -125,6 +125,50 @@ describe('runTrial', () => {
     });
     expect(filtered.triggerCount).toBe(0);
     expect(filtered.warning).toContain('已过滤美股非交易日');
+  });
+
+  it('limits custom triggers to the daily window while keeping state current', async () => {
+    const symbol = 'BTC-USDT-SWAP';
+    const now = Date.parse('2026-11-16T12:00:00Z');
+    const tf = '5m' as const;
+    const candles = makeCandles({ instId: symbol, timeframe: tf, count: 1000, endCloseTime: now });
+    const highFrom = Date.parse('2026-11-16T08:00:00Z');
+    for (let i = 0; i < candles.length; i++) {
+      if (candles[i].openTime >= highFrom) {
+        candles[i] = { ...candles[i], open: 90, high: 111, low: 89, close: 110 };
+      } else {
+        candles[i] = { ...candles[i], open: 90, high: 91, low: 89, close: 90 };
+      }
+    }
+    const market = new FakeMarket(now);
+    market.setHistory(symbol, tf, candles);
+    const expression: ConditionGroup = {
+      kind: 'group',
+      op: 'AND',
+      children: [{
+        kind: 'condition',
+        id: 'high',
+        timeframe: tf,
+        left: { series: 'price.close' },
+        cmp: 'gte',
+        right: { type: 'number', value: 100 },
+      }],
+    };
+    const base = { ...makeDraft({ expression }), cooldownSec: 0 };
+    const allDay: ReplayPeriod = {
+      from: Date.parse('2026-11-15T00:00:00Z'),
+      to: now,
+      timezone: 'UTC',
+      dailyStartMinute: 0,
+      dailyEndMinute: 1440,
+      allDay: true,
+    };
+    const session: ReplayPeriod = { ...allDay, allDay: false, dailyStartMinute: 9 * 60, dailyEndMinute: 10 * 60 };
+    const unfiltered = await runTrial({ draft: base, symbol, windowDays: 1, market, now, period: allDay });
+    expect(unfiltered.triggerCount).toBe(1);
+    const filtered = await runTrial({ draft: base, symbol, windowDays: 1, market, now, period: session });
+    expect(filtered.triggerCount).toBe(0);
+    expect(filtered.warning).toContain('信号仅在所选时段内生成');
   });
 
   it('warns that intrabar history is simulated as close-confirmed', async () => {

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Loader2, PenLine, PlayCircle, RotateCcw, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Calculator, Copy, Loader2, PenLine, PlayCircle, RotateCcw, TriangleAlert } from 'lucide-react';
 import {
   COMPARATOR_LABEL,
   SERIES_CATALOG,
   type Candle,
   type ConditionEvaluation,
+  type ReplayJobView,
+  type ReplayPeriod,
   type ReplayRecord,
   type ReplaySummary,
   type RuleView,
@@ -22,9 +24,46 @@ import {
 } from '../lib/format';
 import { ErrorBanner, LoadingBlock, PageHeader } from '../components/ui';
 import { ReplayProChart } from '../components/chart/ReplayProChart';
+import { PositionCalculatorModal } from '../components/PositionCalculatorModal';
 import type { ChartEventMarker } from '../lib/chart/types';
 
 const WINDOWS = [7, 14, 30] as const;
+const BROWSER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const REPLAY_TIMEZONES = [...new Set([BROWSER_TIMEZONE, 'Asia/Shanghai', 'America/New_York', 'UTC'])];
+const DAY_MS = 86_400_000;
+
+function dateInTimezone(ms: number, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(ms));
+  const get = (type: Intl.DateTimeFormatPartTypes): string => parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+function shiftIsoDate(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + days));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`;
+}
+
+function clockLabel(totalMinutes: number): string {
+  if (totalMinutes >= 1440) return '23:59';
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
+}
+
+function periodLabel(period: ReplayPeriod): string {
+  const start = dateInTimezone(period.from, period.timezone);
+  const end = dateInTimezone(period.to - 1, period.timezone);
+  if (period.allDay) return `${start} 至 ${end} · 全天 · ${period.timezone}`;
+  return `${start} 至 ${end} · 每日 ${clockLabel(period.dailyStartMinute)}–${clockLabel(period.dailyEndMinute)} · ${period.timezone}`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function conditionText(condition: ConditionEvaluation): string {
   const right = condition.rightSeries
@@ -46,6 +85,15 @@ export function RuleReplayPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [symbol, setSymbol] = useState('');
   const [windowDays, setWindowDays] = useState(7);
+  const [customMode, setCustomMode] = useState(false);
+  const [customStart, setCustomStart] = useState(() => shiftIsoDate(dateInTimezone(Date.now(), BROWSER_TIMEZONE), -6));
+  const [customEnd, setCustomEnd] = useState(() => dateInTimezone(Date.now(), BROWSER_TIMEZONE));
+  const [customTimezone, setCustomTimezone] = useState(BROWSER_TIMEZONE);
+  const [customAllDay, setCustomAllDay] = useState(true);
+  const [customStartTime, setCustomStartTime] = useState('09:30');
+  const [customEndTime, setCustomEndTime] = useState('16:00');
+  const [activeJob, setActiveJob] = useState<ReplayJobView | null>(null);
+  const [jobElapsed, setJobElapsed] = useState(0);
   const [chartTimeframe, setChartTimeframe] = useState<Timeframe>('5m');
   const [viewCandles, setViewCandles] = useState<Candle[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
@@ -56,6 +104,8 @@ export function RuleReplayPage() {
   const [stale, setStale] = useState(false);
   const [selectedTrigger, setSelectedTrigger] = useState<number | null>(null);
   const [focusTimestamp, setFocusTimestamp] = useState<number | null>(null);
+  const [selectedTriggers, setSelectedTriggers] = useState<number[]>([]);
+  const [calculatorIndexes, setCalculatorIndexes] = useState<number[] | null>(null);
   const [replays, setReplays] = useState<ReplaySummary[]>([]);
   const [selectedReplayId, setSelectedReplayId] = useState('');
   const [savedMeta, setSavedMeta] = useState<{ createdAt: number; ruleVersion: number } | null>(null);
@@ -89,7 +139,20 @@ export function RuleReplayPage() {
     setSavedMeta({ createdAt: replay.createdAt, ruleVersion: replay.ruleVersion });
     setSelectedTrigger(null);
     setFocusTimestamp(null);
+    setSelectedTriggers([]);
+    setCalculatorIndexes(null);
     setStale(false);
+    if (replay.period) {
+      setCustomMode(true);
+      setCustomTimezone(replay.period.timezone);
+      setCustomStart(dateInTimezone(replay.period.from, replay.period.timezone));
+      setCustomEnd(dateInTimezone(replay.period.to - 1, replay.period.timezone));
+      setCustomAllDay(replay.period.allDay);
+      setCustomStartTime(clockLabel(replay.period.dailyStartMinute));
+      setCustomEndTime(clockLabel(replay.period.dailyEndMinute));
+    } else {
+      setCustomMode(false);
+    }
   }
 
   async function runReplay(
@@ -130,6 +193,92 @@ export function RuleReplayPage() {
     }
   }
 
+  function customPeriodInput() {
+    return {
+      startDate: customStart,
+      endDate: customEnd,
+      timezone: customTimezone,
+      allDay: customAllDay,
+      ...(customAllDay ? {} : { dailyStart: customStartTime, dailyEnd: customEndTime }),
+    };
+  }
+
+  function periodToInput(period: ReplayPeriod) {
+    return {
+      startDate: dateInTimezone(period.from, period.timezone),
+      endDate: dateInTimezone(period.to - 1, period.timezone),
+      timezone: period.timezone,
+      allDay: period.allDay,
+      ...(period.allDay ? {} : {
+        dailyStart: clockLabel(period.dailyStartMinute),
+        dailyEnd: clockLabel(period.dailyEndMinute),
+      }),
+    };
+  }
+
+  async function pollReplayJob(initialJob: ReplayJobView, seq: number): Promise<void> {
+    let latest = initialJob;
+    setActiveJob(latest);
+    while (seq === requestSeq.current) {
+      if (latest.status === 'completed' && latest.replayId) {
+        const { replay } = await api.replay(latest.replayId);
+        if (seq !== requestSeq.current) return;
+        applyReplay(replay);
+        setReplays((previous) => [replay, ...previous.filter((item) => item.id !== replay.id)].slice(0, 20));
+        setActiveJob(null);
+        return;
+      }
+      if (latest.status === 'failed') throw new Error(latest.error ?? '回放处理失败');
+      await sleep(1500);
+      if (seq !== requestSeq.current) return;
+      const { job: next } = await api.replayJob(latest.id);
+      latest = next;
+      setActiveJob(next);
+    }
+  }
+
+  async function runCustomReplayWith(
+    targetRule: RuleView,
+    targetSymbol: string,
+    targetChartTimeframe: Timeframe,
+    periodInput: ReturnType<typeof customPeriodInput>,
+  ) {
+    const seq = ++requestSeq.current;
+    setRunning(true);
+    setRunError(null);
+    setJobElapsed(0);
+    setActiveJob(null);
+    try {
+      const { job } = await api.createReplayAsync(targetRule.id, {
+        symbol: targetSymbol,
+        windowDays: 7,
+        chartTimeframe: targetChartTimeframe,
+        period: periodInput,
+      });
+      if (seq !== requestSeq.current) return;
+      await pollReplayJob(job, seq);
+    } catch (error) {
+      if (seq !== requestSeq.current) return;
+      setRunError(error instanceof Error ? error.message : String(error));
+      setActiveJob(null);
+    } finally {
+      if (seq === requestSeq.current) setRunning(false);
+    }
+  }
+
+  async function runCustomReplay() {
+    if (!rule || !symbol) return;
+    if (!customStart || !customEnd) {
+      setRunError('请选择回放的开始和结束日期');
+      return;
+    }
+    if (customStart > customEnd) {
+      setRunError('结束日期必须不早于开始日期');
+      return;
+    }
+    await runCustomReplayWith(rule, symbol, chartTimeframe, customPeriodInput());
+  }
+
   async function loadSavedReplay(replayId: string) {
     if (!replayId) return;
     const seq = ++requestSeq.current;
@@ -168,6 +317,9 @@ export function RuleReplayPage() {
     setRuleUpdated(false);
     setSymbol('');
     setChartTimeframe('5m');
+    setCustomMode(false);
+    setActiveJob(null);
+    setJobElapsed(0);
     api.rule(id)
       .then(async ({ rule: loaded }) => {
         if (!active) return;
@@ -178,6 +330,21 @@ export function RuleReplayPage() {
         setWindowDays(7);
         setChartTimeframe(initialChart);
         try {
+          const activeJobResponse = await api.activeReplayJob(id);
+          if (activeJobResponse.job) {
+            setLoadingRule(false);
+            setActiveJob(activeJobResponse.job);
+            try {
+              await pollReplayJob(activeJobResponse.job, requestSeq.current);
+            } catch (error) {
+              if (active) setActiveJob(null);
+              throw error;
+            }
+            if (!active) return;
+            const { replays: savedAfterJob } = await api.replays(id, 20);
+            if (active) setReplays(savedAfterJob);
+            return;
+          }
           const { replays: saved } = await api.replays(id, 20);
           if (!active) return;
           setReplays(saved);
@@ -201,7 +368,20 @@ export function RuleReplayPage() {
             setWindowDays(fallbackWindow);
             setChartTimeframe(fallbackChart);
             setLoadingRule(false);
-            if (fallbackSymbol) await runReplay(loaded, fallbackSymbol, fallbackWindow, fallbackChart);
+            if (base?.period) {
+              setCustomMode(true);
+              setCustomTimezone(base.period.timezone);
+              setCustomStart(dateInTimezone(base.period.from, base.period.timezone));
+              setCustomEnd(dateInTimezone(base.period.to - 1, base.period.timezone));
+              setCustomAllDay(base.period.allDay);
+              setCustomStartTime(clockLabel(base.period.dailyStartMinute));
+              setCustomEndTime(clockLabel(base.period.dailyEndMinute));
+              if (fallbackSymbol) {
+                await runCustomReplayWith(loaded, fallbackSymbol, fallbackChart, periodToInput(base.period));
+              }
+            } else if (fallbackSymbol) {
+              await runReplay(loaded, fallbackSymbol, fallbackWindow, fallbackChart);
+            }
           }
         } catch (error) {
           if (!active) return;
@@ -244,6 +424,24 @@ export function RuleReplayPage() {
 
   function changeWindow(next: number) {
     setWindowDays(next);
+    setCustomMode(false);
+    if (result) setStale(true);
+  }
+
+  function changeCustom(patch: Partial<{
+    start: string;
+    end: string;
+    timezone: string;
+    allDay: boolean;
+    startTime: string;
+    endTime: string;
+  }>) {
+    if (patch.start !== undefined) setCustomStart(patch.start);
+    if (patch.end !== undefined) setCustomEnd(patch.end);
+    if (patch.timezone !== undefined) setCustomTimezone(patch.timezone);
+    if (patch.allDay !== undefined) setCustomAllDay(patch.allDay);
+    if (patch.startTime !== undefined) setCustomStartTime(patch.startTime);
+    if (patch.endTime !== undefined) setCustomEndTime(patch.endTime);
     if (result) setStale(true);
   }
 
@@ -265,7 +463,21 @@ export function RuleReplayPage() {
 
   function runCurrent() {
     if (!rule) return;
-    void runReplay(rule, symbol, windowDays, chartTimeframe);
+    if (customMode) void runCustomReplay();
+    else void runReplay(rule, symbol, windowDays, chartTimeframe);
+  }
+
+  function openCalculator(indexes: number[]) {
+    if (!result || !selectedReplayId) return;
+    const valid = [...new Set(indexes)].filter((index) => index >= 0 && index < result.triggers.length);
+    if (!valid.length) return;
+    setCalculatorIndexes(valid);
+  }
+
+  function toggleTrigger(index: number, checked: boolean) {
+    setSelectedTriggers((previous) => checked
+      ? [...new Set([...previous, index])].sort((a, b) => a - b)
+      : previous.filter((item) => item !== index));
   }
 
   async function copyLink() {
@@ -341,20 +553,28 @@ export function RuleReplayPage() {
                 {symbol && !rule.symbols.includes(symbol) ? <option value={symbol}>{symbol}（已保存记录）</option> : null}
               </select>
             </div>
-            <div className="form-field">
-              <span className="form-label">回看窗口</span>
+            <div className="form-field replay-window-field">
+              <span className="form-label">回放时段</span>
               <div className="replay-window-row">
                 {WINDOWS.map((days) => (
                   <button
                     key={days}
                     type="button"
-                    className={`btn btn-sm ${windowDays === days ? 'btn-primary' : 'btn-secondary'}`}
+                    className={`btn btn-sm ${!customMode && windowDays === days ? 'btn-primary' : 'btn-secondary'}`}
                     data-testid={`replay-window-${days}`}
                     onClick={() => changeWindow(days)}
                   >
                     最近 {days} 天
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className={`btn btn-sm ${customMode ? 'btn-primary' : 'btn-secondary'}`}
+                  data-testid="replay-window-custom"
+                  onClick={() => { setCustomMode(true); if (result) setStale(true); }}
+                >
+                  自定义时段
+                </button>
               </div>
             </div>
             <div className="replay-run-wrap">
@@ -367,10 +587,55 @@ export function RuleReplayPage() {
                 disabled={running || !symbol}
               >
                 {running ? <Loader2 size={14} className="spin" /> : <PlayCircle size={14} />}
-                {running ? '回放中…' : '运行并保存'}
+                {running ? (activeJob ? '处理中…' : '回放中…') : customMode ? '运行并保存（异步）' : '运行并保存'}
               </button>
             </div>
           </div>
+          {customMode ? (
+            <div className="replay-custom-period" data-testid="replay-custom-period">
+              <div className="replay-custom-head">
+                <div>
+                  <div className="form-label">自定义回放时段</div>
+                  <span className="form-hint">日期含首尾；每日时段按所选时区计算，跨午夜时段也支持。图表仍展示完整日期区间。</span>
+                </div>
+                <div className="replay-custom-presets">
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => changeCustom({ timezone: 'America/New_York', allDay: false, startTime: '09:30', endTime: '16:00' })}>
+                    美股常规时段
+                  </button>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => changeCustom({ allDay: true })}>
+                    全天
+                  </button>
+                </div>
+              </div>
+              <div className="replay-custom-grid">
+                <label className="form-field">开始日期
+                  <input type="date" className="input" data-testid="replay-custom-start" value={customStart} onChange={(event) => changeCustom({ start: event.target.value })} />
+                </label>
+                <label className="form-field">结束日期
+                  <input type="date" className="input" data-testid="replay-custom-end" value={customEnd} onChange={(event) => changeCustom({ end: event.target.value })} />
+                </label>
+                <label className="form-field">时区
+                  <select className="select" data-testid="replay-custom-timezone" value={customTimezone} onChange={(event) => changeCustom({ timezone: event.target.value })}>
+                    {REPLAY_TIMEZONES.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
+                  </select>
+                </label>
+                <label className="checkbox-line replay-custom-allday">
+                  <input type="checkbox" data-testid="replay-custom-allday" checked={customAllDay} onChange={(event) => changeCustom({ allDay: event.target.checked })} />
+                  全天（不限制每日时段）
+                </label>
+                <label className="form-field">每日开始
+                  <input type="time" className="input" data-testid="replay-custom-start-time" value={customStartTime} disabled={customAllDay} onChange={(event) => changeCustom({ startTime: event.target.value })} />
+                </label>
+                <label className="form-field">每日结束
+                  <input type="time" className="input" data-testid="replay-custom-end-time" value={customEndTime} disabled={customAllDay} onChange={(event) => changeCustom({ endTime: event.target.value })} />
+                </label>
+              </div>
+              <div className="replay-custom-note">
+                {customAllDay ? '当前为全天模式。' : `信号只在每日 ${customStartTime}–${customEndTime}（${customTimezone}）内生成；状态会持续更新，跨时段后不会补发旧信号。`}
+                {' '}自定义范围会走异步处理，完成后自动载入。
+              </div>
+            </div>
+          ) : null}
           <div className="replay-history-row">
             <div className="form-field">
               <label htmlFor="replay-history">已保存回放</label>
@@ -385,7 +650,7 @@ export function RuleReplayPage() {
                 <option value="">{replays.length ? '选择历史结果…' : '暂无已保存结果'}</option>
                 {replays.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {formatDateTime(item.createdAt)} · {item.symbol} · {item.windowDays}天 · {item.chartTimeframe} · {item.triggerCount}次 · v{item.ruleVersion}
+                    {formatDateTime(item.createdAt)} · {item.symbol} · {item.period ? periodLabel(item.period) : `${item.windowDays}天`} · {item.chartTimeframe} · {item.triggerCount}次 · v{item.ruleVersion}
                   </option>
                 ))}
               </select>
@@ -413,14 +678,27 @@ export function RuleReplayPage() {
 
       {runError ? <ErrorBanner message={runError} onRetry={runCurrent} /> : null}
 
-      {running && !result ? <LoadingBlock text="正在补全本地历史 K 线并回放规则…" /> : null}
+      {activeJob ? (
+        <div className="replay-job-banner" data-testid="replay-job-progress">
+          <div className="replay-job-head">
+            <Loader2 size={14} className="spin" />
+            <strong>回放处理中</strong>
+            <span>{activeJob.phase}</span>
+            <span className="replay-job-eta">预计约 {activeJob.estimatedSeconds} 秒 · 已用 {jobElapsed} 秒</span>
+          </div>
+          <div className="replay-job-bar"><span /></div>
+          <div className="form-hint">正在按 OKX 限流分批补全本地 K 线；完成后自动载入并保存，不需要停留在本页，任务仍会在服务端继续。</div>
+        </div>
+      ) : null}
+
+      {running && !result && !activeJob ? <LoadingBlock text="正在补全本地历史 K 线并回放规则…" /> : null}
 
       {result ? (
         <div data-testid="replay-result">
           <div className="trial-metrics replay-metrics">
             <div className="trial-metric"><div className="k">通知位置</div><div className="v">{result.triggerCount}<small>次</small></div></div>
             <div className="trial-metric"><div className="k">平均每天</div><div className="v">{result.perDay}<small>次/天</small></div></div>
-            <div className="trial-metric"><div className="k">回看窗口</div><div className="v">{result.windowDays}<small>天</small></div></div>
+            <div className="trial-metric"><div className="k">回看时段</div><div className="v replay-metric-period">{result.period ? periodLabel(result.period) : <>{result.windowDays}<small>天</small></>}</div></div>
             <div className="trial-metric"><div className="k">清单条数</div><div className="v">{result.triggers.length}<small>条</small></div></div>
           </div>
 
@@ -455,6 +733,7 @@ export function RuleReplayPage() {
                 <div className="panel-title">历史 K 线与通知位置</div>
                 <div className="panel-sub">
                   {result.symbol} · 图表 {chartTimeframe} · 规则 {result.signalTimeframe} · 图上标记与下方触发清单一致
+                  {result.period ? <> · {periodLabel(result.period)}</> : null}
                 </div>
               </div>
               <span className="replay-chart-badge"><span className="replay-chart-dot" /> 通知位置 {result.triggers.length}</span>
@@ -475,6 +754,7 @@ export function RuleReplayPage() {
                   if (!Number.isFinite(index)) return;
                   setSelectedTrigger(index);
                   setFocusTimestamp(event.triggerAt);
+                  openCalculator([index]);
                   document.querySelector(`[data-replay-index="${index}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
                 }}
               />
@@ -490,7 +770,26 @@ export function RuleReplayPage() {
                 <div className="panel-title">触发清单</div>
                 <div className="panel-sub">按通知时间升序 · 条件快照为触发时的已收盘 K 线值 · 清单区域可滚动</div>
               </div>
-              <span className="muted-small">{result.triggers.length} / {result.triggerCount} 条</span>
+              <div className="replay-list-actions">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  data-testid="replay-select-all"
+                  onClick={() => setSelectedTriggers((previous) => previous.length === result.triggers.length ? [] : result.triggers.map((_, index) => index))}
+                >
+                  {selectedTriggers.length === result.triggers.length && result.triggers.length ? '清空选择' : '全选'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  data-testid="replay-calc-selected"
+                  disabled={selectedTriggers.length === 0}
+                  onClick={() => openCalculator(selectedTriggers)}
+                >
+                  <Calculator size={13} /> 仓位计算 ({selectedTriggers.length})
+                </button>
+                <span className="muted-small">{result.triggers.length} / {result.triggerCount} 条</span>
+              </div>
             </div>
             {result.triggers.length === 0 ? (
               <div className="empty-table replay-empty">
@@ -499,7 +798,7 @@ export function RuleReplayPage() {
             ) : (
               <div className="replay-table">
                 <div className="replay-table-head" aria-hidden="true">
-                  <span>#</span><span>通知时间</span><span>触发价</span><span>模式</span><span>条件快照</span>
+                  <span>选择</span><span>通知时间</span><span>触发价</span><span>模式</span><span>条件快照</span>
                 </div>
                 {result.triggers.map((trigger, index) => (
                   <div
@@ -522,7 +821,18 @@ export function RuleReplayPage() {
                       }
                     }}
                   >
-                    <div className="replay-index">#{index + 1}</div>
+                    <div className="replay-index-cell">
+                      <input
+                        type="checkbox"
+                        className="replay-select-checkbox"
+                        data-testid={`replay-select-${index}`}
+                        checked={selectedTriggers.includes(index)}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => toggleTrigger(index, event.target.checked)}
+                        aria-label={`选择信号 #${index + 1}`}
+                      />
+                      <span className="replay-index">#{index + 1}</span>
+                    </div>
                     <div className="replay-when">
                       <strong>{formatDateTime(trigger.triggerAt)}</strong>
                       {trigger.barCloseTime !== trigger.triggerAt ? (
@@ -530,7 +840,22 @@ export function RuleReplayPage() {
                       ) : null}
                     </div>
                     <div className="replay-price">{formatNumber(trigger.price)}</div>
-                    <div className="replay-mode">{triggerModeText(trigger)}</div>
+                    <div className="replay-mode">
+                      {triggerModeText(trigger)}
+                      <button
+                        type="button"
+                        className="replay-calc-mini"
+                        title="单点仓位计算"
+                        aria-label={`仓位计算信号 #${index + 1}`}
+                        data-testid={`replay-calc-${index}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openCalculator([index]);
+                        }}
+                      >
+                        <Calculator size={11} />
+                      </button>
+                    </div>
                     <div className="replay-conditions">
                       {trigger.conditions.map((condition) => (
                         <span className={`replay-cond${condition.truth ? ' ok' : ' no'}`} key={condition.conditionId} title={conditionText(condition)}>
@@ -558,6 +883,14 @@ export function RuleReplayPage() {
           </button>
         </div>
       ) : null}
+
+      <PositionCalculatorModal
+        open={calculatorIndexes !== null}
+        replayId={selectedReplayId}
+        result={result}
+        selectedIndexes={calculatorIndexes ?? []}
+        onClose={() => setCalculatorIndexes(null)}
+      />
 
       <div className="page-foot">
         <span>回放基于历史已收盘 K 线，不发送通知、不写入正式事件。</span>

@@ -396,6 +396,35 @@ export interface TrialTrigger {
   markerType: 'trigger';
 }
 
+export interface ReplayPeriod {
+  /** Inclusive UTC start of the selected date range. */
+  from: number;
+  /** Exclusive UTC end of the selected date range (clamped to evaluation time). */
+  to: number;
+  /** IANA timezone used for the daily intraday window. */
+  timezone: string;
+  /** Minutes from local midnight; 0..1440. */
+  dailyStartMinute: number;
+  dailyEndMinute: number;
+  /** True means all minutes of every day in the date range. */
+  allDay: boolean;
+}
+
+export type ReplayJobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+export interface ReplayJobView {
+  id: string;
+  ruleId: string;
+  status: ReplayJobStatus;
+  phase: string;
+  estimatedSeconds: number;
+  error: string | null;
+  replayId: string | null;
+  createdAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
 export interface TrialDataInfo {
   source: 'local' | 'local+remote' | 'remote';
   localBars: number;
@@ -416,6 +445,8 @@ export interface TrialResult {
   /** Timeframe used by the rule evaluator (shortest referenced timeframe). */
   signalTimeframe: Timeframe;
   data: TrialDataInfo;
+  /** Present for custom date/daily-window replays. */
+  period?: ReplayPeriod;
   triggers: TrialTrigger[];
   /** True when the run produced more than the 500 stored trigger snapshots. */
   triggersTruncated: boolean;
@@ -438,11 +469,82 @@ export interface ReplaySummary {
   dataSource: TrialDataInfo['source'];
   fetchedBars: number;
   coverage: number;
+  period?: ReplayPeriod;
   createdAt: number;
 }
 
 export interface ReplayRecord extends ReplaySummary {
   result: TrialResult;
+}
+
+export type PositionDirection = 'long' | 'short';
+export type PositionExitMode = 'none' | 'price' | 'percent' | 'indicator';
+
+export interface PositionExitRule {
+  mode: PositionExitMode;
+  /** Absolute price for mode=price. */
+  price?: number;
+  /** Positive percentage distance from entry for mode=percent. */
+  percent?: number;
+  /** Price-like indicator series used by mode=indicator. */
+  series?: SeriesKey;
+}
+
+export interface PositionCalculatorConfig {
+  direction: PositionDirection;
+  capital: number;
+  leverage: number;
+  /** Taker fee percentage per side, e.g. 0.05 means 0.05%. */
+  feeRatePct: number;
+  /** Slippage percentage per fill, e.g. 0.02 means 0.02%. */
+  slippagePct: number;
+  target: PositionExitRule;
+  stop: PositionExitRule;
+}
+
+export type PositionExitReason = 'target' | 'stop' | 'end' | 'liquidation' | 'no-data';
+
+export interface PositionTradeResult {
+  index: number;
+  triggerAt: number;
+  entryAt: number;
+  entryPrice: number;
+  quantity: number;
+  notional: number;
+  exitAt: number;
+  exitPrice: number;
+  exitReason: PositionExitReason;
+  targetPrice: number | null;
+  stopPrice: number | null;
+  plannedTargetPnl: number | null;
+  plannedStopPnl: number | null;
+  riskReward: number | null;
+  liquidationPrice: number;
+  grossPnl: number;
+  fees: number;
+  netPnl: number;
+  roiPct: number;
+  equityBefore: number;
+  equityAfter: number;
+}
+
+export interface PositionSkipped {
+  index: number;
+  triggerAt: number;
+  reason: 'overlap' | 'insufficient-equity';
+}
+
+export interface PositionCalculationResult {
+  config: PositionCalculatorConfig;
+  triggerIndexes: number[];
+  trades: PositionTradeResult[];
+  skipped: PositionSkipped[];
+  initialCapital: number;
+  finalEquity: number;
+  totalNetPnl: number;
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  warnings: string[];
 }
 
 export const AGGREGATE_STATUS_LABEL: Record<AggregateRuleStatus, string> = {

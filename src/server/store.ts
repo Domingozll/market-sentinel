@@ -12,6 +12,8 @@ import {
   type ReplaySummary,
   type TrialDataInfo,
   type TrialResult,
+  type ReplayJobView,
+  type ReplayPeriod,
   type ExpressionNode,
   type Rule,
   type RuleDraft,
@@ -109,6 +111,7 @@ export interface ReplayInsert {
   chartTimeframe: string;
   signalTimeframe: string;
   result: TrialResult;
+  period?: ReplayPeriod;
   createdAt: number;
 }
 
@@ -125,8 +128,24 @@ interface ReplayRow {
   data_source: string;
   fetched_bars: number;
   coverage: number;
+  period_json: string | null;
   created_at: number;
   result_json: string;
+}
+
+interface ReplayJobRow {
+  id: string;
+  rule_id: string;
+  rule_version: number;
+  params_json: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  phase: string;
+  estimated_seconds: number;
+  error: string | null;
+  replay_id: string | null;
+  created_at: number;
+  started_at: number | null;
+  finished_at: number | null;
 }
 
 export interface EventListFilters {
@@ -240,10 +259,27 @@ CREATE TABLE IF NOT EXISTS replays (
   data_source TEXT NOT NULL,
   fetched_bars INTEGER NOT NULL,
   coverage REAL NOT NULL,
+  period_json TEXT,
   created_at INTEGER NOT NULL,
   result_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_replays_rule ON replays(rule_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS replay_jobs (
+  id TEXT PRIMARY KEY,
+  rule_id TEXT NOT NULL,
+  rule_version INTEGER NOT NULL,
+  params_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  estimated_seconds REAL NOT NULL,
+  error TEXT,
+  replay_id TEXT,
+  created_at INTEGER NOT NULL,
+  started_at INTEGER,
+  finished_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_replay_jobs_rule ON replay_jobs(rule_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -336,11 +372,27 @@ export class Store {
     this.db.exec(SCHEMA);
     this.ensureDeliveryChannelColumn();
     this.ensureRuleFilterColumn();
+    this.ensureReplayPeriodColumn();
+    this.failInterruptedReplayJobs();
     try {
       fs.chmodSync(this.dbPath, 0o600);
     } catch {
       // Best effort; the data directory is still restricted.
     }
+  }
+
+  private ensureReplayPeriodColumn(): void {
+    const columns = this.db.prepare('PRAGMA table_info(replays)').all() as { name: string }[];
+    if (!columns.some((column) => column.name === 'period_json')) {
+      this.db.exec('ALTER TABLE replays ADD COLUMN period_json TEXT');
+    }
+  }
+
+  private failInterruptedReplayJobs(): void {
+    this.db.prepare(
+      `UPDATE replay_jobs SET status='failed', phase='已中断', error='服务重启，处理中的回放任务已中断；请重新运行。',
+       finished_at=? WHERE status IN ('queued','processing')`,
+    ).run(Date.now());
   }
 
   private ensureRuleFilterColumn(): void {
@@ -958,8 +1010,8 @@ export class Store {
       `INSERT INTO replays (
         id, rule_id, rule_name, rule_version, symbol, window_days,
         chart_timeframe, signal_timeframe, trigger_count, data_source,
-        fetched_bars, coverage, created_at, result_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        fetched_bars, coverage, period_json, created_at, result_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       input.id,
       input.ruleId,
@@ -973,6 +1025,7 @@ export class Store {
       result.data.source,
       result.data.fetchedBars,
       result.data.coverage,
+      input.period ? JSON.stringify(input.period) : null,
       input.createdAt,
       JSON.stringify(result),
     );
@@ -1002,6 +1055,67 @@ export class Store {
     return this.db.prepare('DELETE FROM replays WHERE id=?').run(id).changes > 0;
   }
 
+  createReplayJob(input: {
+    id: string;
+    ruleId: string;
+    ruleVersion: number;
+    params: Record<string, unknown>;
+    estimatedSeconds: number;
+    createdAt: number;
+  }): ReplayJobView {
+    this.db.prepare(
+      `INSERT INTO replay_jobs (id, rule_id, rule_version, params_json, status, phase, estimated_seconds, created_at)
+       VALUES (?, ?, ?, ?, 'queued', '排队中', ?, ?)`,
+    ).run(input.id, input.ruleId, input.ruleVersion, JSON.stringify(input.params), input.estimatedSeconds, input.createdAt);
+    return this.getReplayJob(input.id)!;
+  }
+
+  getActiveReplayJob(ruleId: string): ReplayJobView | null {
+    const row = this.db.prepare(
+      `SELECT * FROM replay_jobs WHERE rule_id=? AND status IN ('queued','processing')
+       ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    ).get(ruleId) as ReplayJobRow | undefined;
+    return row ? this.mapReplayJob(row) : null;
+  }
+
+  getReplayJob(id: string): ReplayJobView | null {
+    const row = this.db.prepare('SELECT * FROM replay_jobs WHERE id=?').get(id) as ReplayJobRow | undefined;
+    return row ? this.mapReplayJob(row) : null;
+  }
+
+  markReplayJobProcessing(id: string, phase: string): void {
+    this.db.prepare(
+      `UPDATE replay_jobs SET status='processing', phase=?, started_at=COALESCE(started_at,?) WHERE id=? AND status IN ('queued','processing')`,
+    ).run(phase, Date.now(), id);
+  }
+
+  completeReplayJob(id: string, replayId: string): void {
+    this.db.prepare(
+      `UPDATE replay_jobs SET status='completed', phase='已完成', replay_id=?, finished_at=? WHERE id=?`,
+    ).run(replayId, Date.now(), id);
+  }
+
+  failReplayJob(id: string, message: string): void {
+    this.db.prepare(
+      `UPDATE replay_jobs SET status='failed', phase='失败', error=?, finished_at=? WHERE id=?`,
+    ).run(message, Date.now(), id);
+  }
+
+  private mapReplayJob(row: ReplayJobRow): ReplayJobView {
+    return {
+      id: row.id,
+      ruleId: row.rule_id,
+      status: row.status,
+      phase: row.phase,
+      estimatedSeconds: row.estimated_seconds,
+      error: row.error,
+      replayId: row.replay_id,
+      createdAt: row.created_at,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+    };
+  }
+
   private mapReplaySummary(row: ReplayRow): ReplaySummary {
     return {
       id: row.id,
@@ -1016,6 +1130,7 @@ export class Store {
       dataSource: row.data_source as TrialDataInfo['source'],
       fetchedBars: row.fetched_bars,
       coverage: row.coverage,
+      period: row.period_json ? JSON.parse(row.period_json) as ReplayPeriod : undefined,
       createdAt: row.created_at,
     };
   }

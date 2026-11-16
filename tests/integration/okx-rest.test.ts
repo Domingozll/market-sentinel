@@ -148,6 +148,22 @@ describe('OkxRestClient', () => {
     network.dispose();
   });
 
+  it('honors a larger page cap for custom replay windows', async () => {
+    const m = await mock();
+    const { client, network } = makeClient(m.url);
+    const now = 1_700_000_000_000 + 120 * 300_000;
+    const histories = await client.fetchHistoryWindow(
+      'BTC-USDT-SWAP',
+      '5m',
+      now - 25_000 * 300_000,
+      now,
+      260,
+    );
+    expect(histories.length).toBeGreaterThan(14_000);
+    expect(m.requests.filter((r) => r.url.includes('history-candles')).length).toBeGreaterThan(140);
+    network.dispose();
+  });
+
   it('pages backward through history and returns confirmed candles in range', async () => {
     const m = await mock();
     const { client, network } = makeClient(m.url);

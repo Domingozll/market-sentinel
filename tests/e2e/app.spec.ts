@@ -151,7 +151,7 @@ test.describe.serial('Market Sentinel system flow', () => {
     // The saved result can be re-run with another window and updates the chart.
     await page.getByTestId('replay-window-30').click();
     await page.getByTestId('run-replay').click();
-    await expect(page.locator('.trial-metric').filter({ hasText: '回看窗口' })).toContainText('30', { timeout: 20_000 });
+    await expect(page.locator('.trial-metric').filter({ hasText: '回看时段' })).toContainText('30', { timeout: 20_000 });
     await expect(page.getByTestId('replay-chart').locator('canvas').first()).toBeVisible();
   });
 
@@ -389,6 +389,30 @@ test.describe.serial('Market Sentinel system flow', () => {
     });
   });
 
+  test('keeps custom period and position calculator usable on mobile', async ({ page }) => {
+    const noHorizontalOverflow = async (label: string) => {
+      const dims = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      }));
+      expect(dims.scrollWidth, `${label} horizontal overflow`).toBeLessThanOrEqual(dims.innerWidth + 1);
+    };
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('.rule-list-grid').filter({ hasText: '下轨触及' }).first();
+    await row.getByTestId('rule-history').click();
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('replay-window-custom').click();
+    await expect(page.getByTestId('replay-custom-period')).toBeVisible();
+    await noHorizontalOverflow('mobile custom replay period');
+
+    await page.getByTestId('replay-calc-0').click();
+    await expect(page.locator('.modal-card')).toBeVisible();
+    await expect(page.locator('.modal-card').getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
+    await noHorizontalOverflow('mobile position calculator');
+    await page.locator('.modal-card .modal-foot button').click();
+  });
+
   test('saves negative decimal thresholds and the US market filter', async ({ page }) => {
     await page.goto('/rules/new', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: '新建规则' })).toBeVisible();
@@ -407,6 +431,82 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByRole('heading', { name: '编辑规则' })).toBeVisible();
     await expect(page.getByLabel('条件 1 阈值')).toHaveValue('-1.25');
     await expect(page.getByTestId('skip-us-non-trading-days')).toBeChecked();
+  });
+
+  test('save closed stays on the editor and long names keep actions in one row', async ({ page, request }) => {
+    const longName = '长名称规则用于验证按钮不会换行和溢出-ABCDEFGHIJKLMNOP';
+    await page.goto('/rules/new', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: '新建规则' })).toBeVisible();
+    await page.getByTestId('rule-name').fill(longName);
+    await page.getByTestId('save-rule-closed').click();
+    await expect(page).toHaveURL(/\/rules\/[^/]+\/edit$/);
+    await expect(page.getByRole('heading', { name: '编辑规则' })).toBeVisible();
+    await expect(page.getByTestId('rule-enabled')).not.toBeChecked();
+
+    const ruleId = page.url().match(/\/rules\/([^/]+)\/edit$/)?.[1];
+    expect(ruleId).toBeTruthy();
+    const fetched = await request.get(`/api/rules/${ruleId}`);
+    expect(fetched.ok()).toBeTruthy();
+    expect((await fetched.json()).rule.enabled).toBe(false);
+
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('.rule-list-grid').filter({ hasText: longName }).first();
+    await expect(row).toBeVisible();
+    const actions = row.locator('.rule-actions .icon-btn');
+    await expect(actions).toHaveCount(4);
+    const boxes = await actions.evaluateAll((nodes) => nodes.map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { top: Math.round(rect.top), right: Math.round(rect.right) };
+    }));
+    expect(new Set(boxes.map((box) => box.top)).size).toBe(1);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflow).toBe(false);
+  });
+
+  test('opens single and batch position calculator for replay signals', async ({ page }) => {
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('.rule-list-grid').filter({ hasText: '下轨触及' }).first();
+    await row.getByTestId('rule-history').click();
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('replay-calc-0')).toBeVisible();
+
+    await page.getByTestId('replay-calc-0').click();
+    const modal = page.locator('.modal-card');
+    await expect(modal.getByText('仓位计算', { exact: true })).toBeVisible();
+    await expect(modal.getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
+    await expect(modal.getByTestId('position-calc-single')).toContainText('净盈亏');
+    const exits = modal.locator('.position-exit-control');
+    await exits.nth(0).locator('select').selectOption('percent');
+    await exits.nth(0).locator('input[type="number"]').fill('2');
+    await exits.nth(1).locator('select').selectOption('percent');
+    await exits.nth(1).locator('input[type="number"]').fill('1');
+    await expect(modal.getByTestId('position-calc-single')).toContainText('盈亏比');
+    await modal.locator('.modal-foot button').click();
+
+    await page.getByTestId('replay-select-0').check();
+    await page.getByTestId('replay-select-1').check();
+    await page.getByTestId('replay-calc-selected').click();
+    await expect(page.locator('.modal-card').getByText(/批量复利计算/)).toBeVisible();
+    await expect(page.locator('.modal-card').getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('runs a custom date range asynchronously with an ETA and loads the result', async ({ page }) => {
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    const row = page.locator('.rule-list-grid').filter({ hasText: '下轨触及' }).first();
+    await row.getByTestId('rule-history').click();
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 30_000 });
+
+    await page.getByTestId('replay-window-custom').click();
+    const end = await page.getByTestId('replay-custom-end').inputValue();
+    await page.getByTestId('replay-custom-start').fill(end);
+    await expect(page.getByTestId('replay-custom-period')).toBeVisible();
+    await page.getByTestId('run-replay').click();
+    await expect(page.getByTestId('replay-job-progress')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('replay-job-progress')).toContainText('预计约');
+    await expect(page.getByTestId('replay-job-progress')).toBeHidden({ timeout: 30_000 });
+    await expect(page.getByTestId('replay-result')).toBeVisible();
+    await expect(page.locator('.replay-metric-period')).toContainText(end);
+    await expect(page.getByTestId('replay-custom-period')).toBeVisible();
   });
 
   test.afterAll(async () => {

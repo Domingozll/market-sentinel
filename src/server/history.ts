@@ -59,12 +59,17 @@ export async function loadLocalFirstHistory(options: {
   timeframe: Timeframe;
   from: number;
   to: number;
+  /** Throw if any expected candle is still missing after incremental fetching. */
+  strictRange?: boolean;
+  /** Maximum OKX history pages; the REST client enforces its own request interval. */
+  maxPages?: number;
 }): Promise<HistoryLoad> {
   const { store, market, instId, timeframe, to } = options;
   const tfMs = TF_MS[timeframe];
   const start = Math.floor(options.from / tfMs) * tfMs;
   // Last candle whose close is at or before `to`.
   const last = Math.floor((to - tfMs) / tfMs) * tfMs;
+  const maxPages = options.maxPages ?? Math.max(140, Math.ceil((last - start) / tfMs / 100) + 8);
   if (last < start) {
     return {
       candles: [],
@@ -88,7 +93,7 @@ export async function loadLocalFirstHistory(options: {
 
   if (gaps.length) {
     const fetchGap = async (gap: Gap): Promise<number> => {
-      const remote = await market.fetchHistory(instId, timeframe, gap.from, gap.to + tfMs);
+      const remote = await market.fetchHistory(instId, timeframe, gap.from, gap.to + tfMs, maxPages);
       const confirmed = confirmedInRange(remote, gap.from, gap.to);
       if (!confirmed.length) return 0;
       store.upsertCandles(confirmed);
@@ -138,6 +143,24 @@ export async function loadLocalFirstHistory(options: {
       `本地历史补数失败：${fetchErrors[0]}`,
       502,
     );
+  }
+  if (options.strictRange && gaps.length) {
+    // The exchange closes the current bar a little after the local clock
+    // boundary. Allow a single trailing bar to be absent; all older/internal
+    // gaps still block a strict custom replay.
+    const latestOpen = local.at(-1)?.openTime;
+    const onlyCurrentBarLate = latestOpen !== undefined
+      && last - latestOpen <= tfMs
+      && Math.abs(Date.now() - options.to) <= tfMs * 3
+      && gaps.every((gap) => gap.from === last && gap.to === last);
+    const strictGaps = onlyCurrentBarLate ? [] : gaps;
+    if (strictGaps.length) {
+      const missing = strictGaps.reduce((sum, gap) => sum + Math.floor((gap.to - gap.from) / tfMs) + 1, 0);
+      throw new HistoryError(
+        `所选回放时段的历史 K 线不完整，仍缺少 ${missing} 根 ${instId} ${timeframe}；请缩短日期范围或稍后重试`,
+        422,
+      );
+    }
   }
 
   const expected = Math.floor((last - start) / tfMs) + 1;
