@@ -8,6 +8,10 @@ import {
   type DeliveryInfo,
   type NotificationChannel,
   type EventView,
+  type ReplayRecord,
+  type ReplaySummary,
+  type TrialDataInfo,
+  type TrialResult,
   type ExpressionNode,
   type Rule,
   type RuleDraft,
@@ -92,6 +96,36 @@ export interface DeliveryInsert {
   channel?: NotificationChannel;
   error?: string | null;
   nextAttemptAt?: number | null;
+}
+
+export interface ReplayInsert {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  ruleVersion: number;
+  symbol: string;
+  windowDays: number;
+  chartTimeframe: string;
+  signalTimeframe: string;
+  result: TrialResult;
+  createdAt: number;
+}
+
+interface ReplayRow {
+  id: string;
+  rule_id: string;
+  rule_name: string;
+  rule_version: number;
+  symbol: string;
+  window_days: number;
+  chart_timeframe: string;
+  signal_timeframe: string;
+  trigger_count: number;
+  data_source: string;
+  fetched_bars: number;
+  coverage: number;
+  created_at: number;
+  result_json: string;
 }
 
 export interface EventListFilters {
@@ -190,6 +224,24 @@ CREATE TABLE IF NOT EXISTS candles (
   PRIMARY KEY(inst_id, timeframe, open_ts)
 );
 CREATE INDEX IF NOT EXISTS idx_candles_pair ON candles(inst_id, timeframe, open_ts DESC);
+
+CREATE TABLE IF NOT EXISTS replays (
+  id TEXT PRIMARY KEY,
+  rule_id TEXT NOT NULL,
+  rule_name TEXT NOT NULL,
+  rule_version INTEGER NOT NULL,
+  symbol TEXT NOT NULL,
+  window_days INTEGER NOT NULL,
+  chart_timeframe TEXT NOT NULL,
+  signal_timeframe TEXT NOT NULL,
+  trigger_count INTEGER NOT NULL,
+  data_source TEXT NOT NULL,
+  fetched_bars INTEGER NOT NULL,
+  coverage REAL NOT NULL,
+  created_at INTEGER NOT NULL,
+  result_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_replays_rule ON replays(rule_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -773,6 +825,36 @@ export class Store {
       .reverse();
   }
 
+  getCandleRange(
+    instId: string,
+    timeframe: Timeframe,
+    from: number,
+    to: number,
+    limit = 20_000,
+  ): Candle[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM candles
+         WHERE inst_id=? AND timeframe=? AND confirm=1 AND open_ts >= ? AND open_ts <= ?
+         ORDER BY open_ts ASC LIMIT ?`,
+      )
+      .all(instId, timeframe, from, to, limit) as unknown as Record<string, number | string>[];
+    return rows.map((row) => ({
+      instId: String(row.inst_id),
+      timeframe: String(row.timeframe) as Timeframe,
+      openTime: Number(row.open_ts),
+      open: Number(row.open),
+      high: Number(row.high),
+      low: Number(row.low),
+      close: Number(row.close),
+      volume: Number(row.vol_ccy_quote),
+      vol: Number(row.vol),
+      volCcy: Number(row.vol_ccy),
+      volCcyQuote: Number(row.vol_ccy_quote),
+      confirm: Boolean(row.confirm),
+    }));
+  }
+
   getCandlesBefore(
     instId: string,
     timeframe: Timeframe,
@@ -854,6 +936,79 @@ export class Store {
         now - days * 86_400_000,
       );
     }
+  }
+
+  // Replay snapshots -------------------------------------------------------
+  saveReplay(input: ReplayInsert): ReplayRecord {
+    const result = input.result;
+    this.db.prepare(
+      `INSERT INTO replays (
+        id, rule_id, rule_name, rule_version, symbol, window_days,
+        chart_timeframe, signal_timeframe, trigger_count, data_source,
+        fetched_bars, coverage, created_at, result_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      input.id,
+      input.ruleId,
+      input.ruleName,
+      input.ruleVersion,
+      input.symbol,
+      input.windowDays,
+      input.chartTimeframe,
+      input.signalTimeframe,
+      result.triggerCount,
+      result.data.source,
+      result.data.fetchedBars,
+      result.data.coverage,
+      input.createdAt,
+      JSON.stringify(result),
+    );
+    return this.getReplay(input.id)!;
+  }
+
+  getReplay(id: string): ReplayRecord | null {
+    const row = this.db.prepare('SELECT * FROM replays WHERE id=?').get(id) as ReplayRow | undefined;
+    return row ? this.mapReplay(row) : null;
+  }
+
+  latestReplay(ruleId: string): ReplayRecord | null {
+    const row = this.db
+      .prepare('SELECT * FROM replays WHERE rule_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1')
+      .get(ruleId) as ReplayRow | undefined;
+    return row ? this.mapReplay(row) : null;
+  }
+
+  listReplays(ruleId: string, limit = 20): ReplaySummary[] {
+    const rows = this.db
+      .prepare('SELECT * FROM replays WHERE rule_id=? ORDER BY created_at DESC, rowid DESC LIMIT ?')
+      .all(ruleId, Math.max(1, Math.min(100, limit))) as unknown as ReplayRow[];
+    return rows.map((row) => this.mapReplaySummary(row));
+  }
+
+  deleteReplay(id: string): boolean {
+    return this.db.prepare('DELETE FROM replays WHERE id=?').run(id).changes > 0;
+  }
+
+  private mapReplaySummary(row: ReplayRow): ReplaySummary {
+    return {
+      id: row.id,
+      ruleId: row.rule_id,
+      ruleName: row.rule_name,
+      ruleVersion: row.rule_version,
+      symbol: row.symbol,
+      windowDays: row.window_days,
+      chartTimeframe: row.chart_timeframe as TrialResult['timeframe'],
+      signalTimeframe: row.signal_timeframe as TrialResult['signalTimeframe'],
+      triggerCount: row.trigger_count,
+      dataSource: row.data_source as TrialDataInfo['source'],
+      fetchedBars: row.fetched_bars,
+      coverage: row.coverage,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapReplay(row: ReplayRow): ReplayRecord {
+    return { ...this.mapReplaySummary(row), result: JSON.parse(row.result_json) as TrialResult };
   }
 
   // Settings/meta ----------------------------------------------------------

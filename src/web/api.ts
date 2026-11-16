@@ -3,6 +3,8 @@ import type {
   DashboardStats,
   EventView,
   PublicSettings,
+  ReplayRecord,
+  ReplaySummary,
   Rule,
   RuleDraft,
   RuleEvaluation,
@@ -155,11 +157,19 @@ export const api = {
     request<PreviewResult>('/api/rules/preview', { method: 'POST', body: JSON.stringify(payload) }),
   trialRule: (payload: RulePayload & { symbol: string; windowDays: number }) =>
     request<TrialResult>('/api/rules/trial', { method: 'POST', body: JSON.stringify(payload) }),
-  trialRuleById: (id: string, symbol: string, windowDays: number) =>
+  trialRuleById: (id: string, symbol: string, windowDays: number, chartTimeframe?: string) =>
     request<TrialResult>(`/api/rules/${id}/trial`, {
       method: 'POST',
-      body: JSON.stringify({ symbol, windowDays }),
+      body: JSON.stringify({ symbol, windowDays, ...(chartTimeframe ? { chartTimeframe } : {}) }),
     }),
+  createReplay: (ruleId: string, payload: { symbol: string; windowDays: number; chartTimeframe: string }) =>
+    request<{ replay: ReplayRecord }>(`/api/rules/${ruleId}/replays`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  replays: (ruleId: string, limit = 20) =>
+    request<{ replays: ReplaySummary[] }>(`/api/rules/${ruleId}/replays?limit=${limit}`),
+  replay: (id: string) => request<{ replay: ReplayRecord }>(`/api/replays/${encodeURIComponent(id)}`),
   events: (params: Record<string, string | number | undefined> = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -213,4 +223,4 @@ export const api = {
   status: () => request<AppStatus>('/api/status'),
 };
 
-export type { Rule, RuleView, RuleDraft, TriggerMode, EventView, TrialResult };
+export type { Rule, RuleView, RuleDraft, TriggerMode, EventView, TrialResult, ReplayRecord, ReplaySummary };

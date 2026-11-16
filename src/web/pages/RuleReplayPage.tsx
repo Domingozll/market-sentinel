@@ -6,7 +6,10 @@ import {
   SERIES_CATALOG,
   type Candle,
   type ConditionEvaluation,
+  type ReplayRecord,
+  type ReplaySummary,
   type RuleView,
+  type Timeframe,
   type TrialResult,
   type TrialTrigger,
 } from '../../shared/types';
@@ -19,7 +22,7 @@ import {
 } from '../lib/format';
 import { ErrorBanner, LoadingBlock, PageHeader } from '../components/ui';
 import { ReplayProChart } from '../components/chart/ReplayProChart';
-import type { ChartEventMarker } from '../lib/chart/types';
+import { ALL_CHART_TIMEFRAMES, type ChartEventMarker } from '../lib/chart/types';
 
 const WINDOWS = [7, 14, 30] as const;
 
@@ -43,32 +46,75 @@ export function RuleReplayPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [symbol, setSymbol] = useState('');
   const [windowDays, setWindowDays] = useState(7);
+  const [chartTimeframe, setChartTimeframe] = useState<Timeframe>('5m');
   const [running, setRunning] = useState(false);
+  const [loadingSaved, setLoadingSaved] = useState(false);
   const [result, setResult] = useState<TrialResult | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const [selectedTrigger, setSelectedTrigger] = useState<number | null>(null);
   const [focusTimestamp, setFocusTimestamp] = useState<number | null>(null);
+  const [replays, setReplays] = useState<ReplaySummary[]>([]);
+  const [selectedReplayId, setSelectedReplayId] = useState('');
+  const [savedMeta, setSavedMeta] = useState<{ createdAt: number; ruleVersion: number } | null>(null);
   const requestSeq = useRef(0);
 
-  async function runReplay(targetRule: RuleView, targetSymbol: string, targetWindow: number) {
+  function applyReplay(replay: ReplayRecord) {
+    setResult(replay.result);
+    setSymbol(replay.symbol);
+    setWindowDays(replay.windowDays);
+    setChartTimeframe(replay.chartTimeframe);
+    setSelectedReplayId(replay.id);
+    setSavedMeta({ createdAt: replay.createdAt, ruleVersion: replay.ruleVersion });
+    setSelectedTrigger(null);
+    setFocusTimestamp(null);
+    setStale(false);
+  }
+
+  async function runReplay(
+    targetRule: RuleView,
+    targetSymbol: string,
+    targetWindow: number,
+    targetChartTimeframe: Timeframe,
+  ) {
     if (!targetSymbol) return;
     const seq = ++requestSeq.current;
     setRunning(true);
     setRunError(null);
     try {
-      const next = await api.trialRuleById(targetRule.id, targetSymbol, targetWindow);
+      const { replay } = await api.createReplay(targetRule.id, {
+        symbol: targetSymbol,
+        windowDays: targetWindow,
+        chartTimeframe: targetChartTimeframe,
+      });
       if (seq !== requestSeq.current) return;
-      setResult(next);
-      setWindowDays(next.windowDays);
-      setSelectedTrigger(null);
-      setFocusTimestamp(null);
-      setStale(false);
+      applyReplay(replay);
+      setReplays((previous) => [
+        replay,
+        ...previous.filter((item) => item.id !== replay.id),
+      ].slice(0, 20));
     } catch (error) {
       if (seq !== requestSeq.current) return;
       setRunError(error instanceof Error ? error.message : String(error));
     } finally {
       if (seq === requestSeq.current) setRunning(false);
+    }
+  }
+
+  async function loadSavedReplay(replayId: string) {
+    if (!replayId) return;
+    const seq = ++requestSeq.current;
+    setLoadingSaved(true);
+    setRunError(null);
+    try {
+      const { replay } = await api.replay(replayId);
+      if (seq !== requestSeq.current) return;
+      applyReplay(replay);
+    } catch (error) {
+      if (seq !== requestSeq.current) return;
+      setRunError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (seq === requestSeq.current) setLoadingSaved(false);
     }
   }
 
@@ -87,15 +133,38 @@ export function RuleReplayPage() {
     setRunError(null);
     setStale(false);
     setRunning(false);
+    setReplays([]);
+    setSelectedReplayId('');
+    setSavedMeta(null);
+    setSymbol('');
+    setChartTimeframe('5m');
     api.rule(id)
-      .then(({ rule: loaded }) => {
+      .then(async ({ rule: loaded }) => {
         if (!active) return;
         setRule(loaded);
         const firstSymbol = loaded.symbols[0] ?? '';
+        const initialChart = (loaded.timeframes[0] ?? '5m') as Timeframe;
         setSymbol(firstSymbol);
         setWindowDays(7);
-        setLoadingRule(false);
-        if (firstSymbol) void runReplay(loaded, firstSymbol, 7);
+        setChartTimeframe(initialChart);
+        try {
+          const { replays: saved } = await api.replays(id, 20);
+          if (!active) return;
+          setReplays(saved);
+          if (saved.length) {
+            const { replay } = await api.replay(saved[0].id);
+            if (!active) return;
+            applyReplay(replay);
+            setLoadingRule(false);
+          } else {
+            setLoadingRule(false);
+            if (firstSymbol) await runReplay(loaded, firstSymbol, 7, initialChart);
+          }
+        } catch (error) {
+          if (!active) return;
+          setLoadError(error instanceof Error ? error.message : String(error));
+          setLoadingRule(false);
+        }
       })
       .catch((error) => {
         if (!active) return;
@@ -105,7 +174,7 @@ export function RuleReplayPage() {
     return () => {
       active = false;
     };
-    // The replay is intentionally run once per rule id; changing controls must be explicit.
+    // Load the latest saved snapshot once. Running is only explicit from this point on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -152,9 +221,14 @@ export function RuleReplayPage() {
     if (result) setStale(true);
   }
 
+  function changeChartTimeframe(next: Timeframe) {
+    setChartTimeframe(next);
+    if (result) setStale(true);
+  }
+
   function runCurrent() {
     if (!rule) return;
-    void runReplay(rule, symbol, windowDays);
+    void runReplay(rule, symbol, windowDays, chartTimeframe);
   }
 
   async function copyLink() {
@@ -227,6 +301,19 @@ export function RuleReplayPage() {
                 onChange={(event) => changeSymbol(event.target.value)}
               >
                 {rule.symbols.map((item) => <option key={item} value={item}>{item}</option>)}
+                {symbol && !rule.symbols.includes(symbol) ? <option value={symbol}>{symbol}（已保存记录）</option> : null}
+              </select>
+            </div>
+            <div className="form-field">
+              <label htmlFor="replay-chart-timeframe">图表周期</label>
+              <select
+                id="replay-chart-timeframe"
+                className="select"
+                data-testid="replay-chart-timeframe"
+                value={chartTimeframe}
+                onChange={(event) => changeChartTimeframe(event.target.value as Timeframe)}
+              >
+                {ALL_CHART_TIMEFRAMES.map((item) => <option key={item} value={item}>{item}</option>)}
               </select>
             </div>
             <div className="form-field">
@@ -255,19 +342,47 @@ export function RuleReplayPage() {
                 disabled={running || !symbol}
               >
                 {running ? <Loader2 size={14} className="spin" /> : <PlayCircle size={14} />}
-                {running ? '回放中…' : '运行回放'}
+                {running ? '回放中…' : '运行并保存'}
               </button>
             </div>
           </div>
+          <div className="replay-history-row">
+            <div className="form-field">
+              <label htmlFor="replay-history">已保存回放</label>
+              <select
+                id="replay-history"
+                className="select"
+                data-testid="replay-history"
+                value={selectedReplayId}
+                disabled={running || loadingSaved || !replays.length}
+                onChange={(event) => void loadSavedReplay(event.target.value)}
+              >
+                <option value="">{replays.length ? '选择历史结果…' : '暂无已保存结果'}</option>
+                {replays.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {formatDateTime(item.createdAt)} · {item.symbol} · {item.windowDays}天 · {item.chartTimeframe} · {item.triggerCount}次
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="replay-history-meta">
+              {savedMeta ? (
+                <span>最近保存 {formatDateTime(savedMeta.createdAt)} · 规则 v{savedMeta.ruleVersion}</span>
+              ) : (
+                <span>首次回放会自动保存；刷新页面直接载入最近结果，不会重新计算。</span>
+              )}
+              {loadingSaved ? <span className="replay-loading"><Loader2 size={11} className="spin" /> 载入中…</span> : null}
+            </div>
+          </div>
           <div className="muted-small replay-control-note">
-            按已收盘 K 线评估条件，通知位置标注在触发 K 线上。窗口内最多保留 500 条触发快照；1m / 3m 会自动缩短历史窗口。
+            按已收盘 K 线评估条件，通知位置标注在触发 K 线上。每次“运行并保存”会写入一条历史结果；窗口内最多保留 500 条触发快照；1m / 3m 会自动缩短历史窗口。
           </div>
         </div>
       </section>
 
       {runError ? <ErrorBanner message={runError} onRetry={runCurrent} /> : null}
 
-      {running && !result ? <LoadingBlock text="正在拉取历史 K 线并回放规则…" /> : null}
+      {running && !result ? <LoadingBlock text="正在补全本地历史 K 线并回放规则…" /> : null}
 
       {result ? (
         <div data-testid="replay-result">
@@ -276,6 +391,23 @@ export function RuleReplayPage() {
             <div className="trial-metric"><div className="k">平均每天</div><div className="v">{result.perDay}<small>次/天</small></div></div>
             <div className="trial-metric"><div className="k">回看窗口</div><div className="v">{result.windowDays}<small>天</small></div></div>
             <div className="trial-metric"><div className="k">清单条数</div><div className="v">{result.triggers.length}<small>条</small></div></div>
+          </div>
+
+          {savedMeta && savedMeta.ruleVersion !== rule.version ? (
+            <div className="warning-banner">
+              <TriangleAlert size={13} />
+              <div>这条结果基于规则 v{savedMeta.ruleVersion}，当前规则为 v{rule.version}。重新运行可生成最新结果，历史结果仍会保留。</div>
+            </div>
+          ) : null}
+
+          <div className="replay-data-row" data-testid="replay-data-info">
+            <span className={`replay-source source-${result.data.source}`}>
+              数据：{result.data.source === 'local' ? '本地缓存' : result.data.source === 'local+remote' ? '本地 + 增量补齐' : '远程补全'}
+            </span>
+            <span>本地 {result.data.localBars} 根</span>
+            <span>增量 {result.data.fetchedBars} 根</span>
+            <span>覆盖 {(result.data.coverage * 100).toFixed(1)}%</span>
+            {result.data.gaps > 0 ? <span className="replay-data-warn">未覆盖 {result.data.gaps} 根</span> : null}
           </div>
 
           <div className="warning-banner">
@@ -291,7 +423,7 @@ export function RuleReplayPage() {
               <div>
                 <div className="panel-title">历史 K 线与通知位置</div>
                 <div className="panel-sub">
-                  {result.symbol} · {result.timeframe} · 图上标记与下方触发清单一致
+                  {result.symbol} · 图表 {result.timeframe} · 规则 {result.signalTimeframe} · 图上标记与下方触发清单一致
                 </div>
               </div>
               <span className="replay-chart-badge"><span className="replay-chart-dot" /> 通知位置 {result.triggers.length}</span>

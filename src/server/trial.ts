@@ -11,8 +11,10 @@ import {
 } from '../shared/types';
 import type { Candle } from '../shared/types';
 import type { AppMarket } from './market/provider';
+import type { Store } from './store';
 import { compareValues, computeSeries, type Series } from './indicators';
 import { collectTimeframes, evaluateExpression, flattenConditions, shortestTimeframe } from './rules/schema';
+import { loadLocalFirstHistory, type HistoryLoad } from './history';
 
 export class TrialError extends Error {
   statusCode: number;
@@ -57,13 +59,18 @@ export async function runTrial(options: {
   draft: RuleDraft;
   symbol: string;
   windowDays: number;
+  chartTimeframe?: Timeframe;
   market: AppMarket;
+  store?: Store;
   now?: number;
 }): Promise<TrialResult> {
   const { draft, market } = options;
-  const timeframes = collectTimeframes(draft.expression);
+  const ruleTimeframes = collectTimeframes(draft.expression);
+  const referenceTimeframe = shortestTimeframe(draft.expression);
+  const chartTimeframe = options.chartTimeframe ?? referenceTimeframe;
+  const requestedTimeframes = [...new Set<Timeframe>([...ruleTimeframes, chartTimeframe])];
   if (!draft.symbols.includes(options.symbol)) throw new TrialError('试跑品种不在规则范围内');
-  const maxDays = maxWindowDays(timeframes);
+  const maxDays = maxWindowDays(requestedTimeframes);
   const windowDays = clampWindow(options.windowDays, maxDays);
   const now = options.now ?? market.exchangeNow();
   const windowStart = now - windowDays * 86_400_000;
@@ -74,23 +81,72 @@ export async function runTrial(options: {
   if (draft.triggerMode === 'intrabar') {
     warnings.push('历史盘中 tick 无法还原，试跑按收盘确认口径计算');
   }
+  if (chartTimeframe !== referenceTimeframe) {
+    warnings.push(`图表周期为 ${chartTimeframe}，规则评估周期为 ${referenceTimeframe}`);
+  }
 
+  const historyLoads = new Map<Timeframe, HistoryLoad>();
   const historyEntries = await Promise.all(
-    timeframes.map(async (timeframe) => {
+    requestedTimeframes.map(async (timeframe) => {
       const warmupFrom = windowStart - MIN_HISTORY_BARS * TF_MS[timeframe];
-      const candles = await market.fetchHistory(options.symbol, timeframe, warmupFrom, now);
-      const closed = candles
+      const loaded = options.store
+        ? await loadLocalFirstHistory({
+            store: options.store,
+            market,
+            instId: options.symbol,
+            timeframe,
+            from: warmupFrom,
+            to: now,
+          })
+        : {
+            candles: await market.fetchHistory(options.symbol, timeframe, warmupFrom, now),
+            source: 'remote' as const,
+            localBars: 0,
+            fetchedBars: 0,
+            coverage: 1,
+            gaps: 0,
+            from: warmupFrom,
+            to: now,
+            requestedFrom: warmupFrom,
+            requestedTo: now,
+          };
+      const closed = loaded.candles
         .filter((candle) => candle.confirm)
         .filter((candle) => candle.openTime + TF_MS[timeframe] <= now)
         .sort((a, b) => a.openTime - b.openTime);
+      historyLoads.set(timeframe, {
+        ...loaded,
+        candles: closed,
+        fetchedBars: loaded.fetchedBars || (loaded.source === 'remote' ? closed.length : 0),
+      });
       return { timeframe, candles: closed, closeTimes: closed.map((candle) => candle.openTime + TF_MS[timeframe]) };
     }),
   );
   const histories = new Map<Timeframe, HistorySet>(historyEntries.map((entry) => [entry.timeframe, entry]));
-  for (const [timeframe, history] of histories) {
-    if (history.candles.length < MIN_HISTORY_BARS) {
-      throw new TrialError(`${options.symbol} ${timeframe} 历史数据不足（${history.candles.length}/${MIN_HISTORY_BARS}），请缩短窗口或稍后重试`, 422);
+  for (const timeframe of ruleTimeframes) {
+    const history = histories.get(timeframe);
+    if (!history || history.candles.length < MIN_HISTORY_BARS) {
+      throw new TrialError(`${options.symbol} ${timeframe} 历史数据不足（${history?.candles.length ?? 0}/${MIN_HISTORY_BARS}），请缩短窗口或稍后重试`, 422);
     }
+  }
+  if (!histories.get(chartTimeframe)?.candles.length) {
+    throw new TrialError(`${options.symbol} ${chartTimeframe} 图表周期没有可用历史数据`, 422);
+  }
+
+  const loads = [...historyLoads.values()];
+  const dataInfo: TrialResult['data'] = {
+    source: loads.some((item) => item.source === 'remote' || item.source === 'local+remote')
+      ? (loads.some((item) => item.source === 'local' || item.source === 'local+remote') ? 'local+remote' : 'remote')
+      : 'local',
+    localBars: loads.reduce((sum, item) => sum + item.localBars, 0),
+    fetchedBars: loads.reduce((sum, item) => sum + item.fetchedBars, 0),
+    coverage: loads.length ? Number(Math.min(...loads.map((item) => item.coverage)).toFixed(6)) : 0,
+    gaps: loads.reduce((sum, item) => sum + item.gaps, 0),
+    from: Math.min(...loads.map((item) => item.from)),
+    to: Math.max(...loads.map((item) => item.to)),
+  };
+  if (dataInfo.coverage < 0.999 || dataInfo.gaps > 0) {
+    warnings.push(`历史数据覆盖 ${(dataInfo.coverage * 100).toFixed(1)}%，仅能回放实际可用的连续区间`);
   }
 
   const conditions = flattenConditions(draft.expression);
@@ -109,10 +165,10 @@ export async function runTrial(options: {
     return { conditionIndex, timeframe: condition.timeframe, left, right, leftParams, rightParams };
   });
 
-  const referenceTimeframe = shortestTimeframe(draft.expression);
   const referenceHistory = histories.get(referenceTimeframe)!;
   const allEventTimes = new Set<number>();
-  for (const history of histories.values()) {
+  for (const timeframe of ruleTimeframes) {
+    const history = histories.get(timeframe)!;
     for (const closeTime of history.closeTimes) {
       if (closeTime > windowStart && closeTime <= now) allEventTimes.add(closeTime);
     }
@@ -120,7 +176,7 @@ export async function runTrial(options: {
   // Sampling every higher timeframe close is enough for a close-confirmed trial.
   const eventTimes = [...allEventTimes].sort((a, b) => a - b);
   const pointers = new Map<Timeframe, number>();
-  for (const timeframe of timeframes) pointers.set(timeframe, -1);
+  for (const timeframe of requestedTimeframes) pointers.set(timeframe, -1);
 
   const evaluateAt = (time: number): { evaluation: ConditionEvaluation[]; truth: boolean } | null => {
     const snapshots: ConditionEvaluation[] = [];
@@ -198,8 +254,9 @@ export async function runTrial(options: {
     previousTruth = result.truth;
   }
 
-  const chartCandlesAll = referenceHistory.candles.filter(
-    (candle) => candle.openTime + TF_MS[referenceTimeframe] > windowStart && candle.openTime < now,
+  const chartHistory = histories.get(chartTimeframe)!;
+  const chartCandlesAll = chartHistory.candles.filter(
+    (candle) => candle.openTime + TF_MS[chartTimeframe] > windowStart && candle.openTime < now,
   );
   // Keep the whole replay window so every listed trigger has a candle to anchor to.
   // Valid windows top out around 10k 1m bars / 8.6k 5m bars.
@@ -225,7 +282,9 @@ export async function runTrial(options: {
     perDay: Number((triggerCount / windowDays).toFixed(2)),
     windowDays,
     symbol: options.symbol,
-    timeframe: referenceTimeframe,
+    timeframe: chartTimeframe,
+    signalTimeframe: referenceTimeframe,
+    data: dataInfo,
     triggers,
     triggersTruncated: triggerCount > triggers.length,
     candles: chartCandles.map((candle) => ({

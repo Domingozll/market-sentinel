@@ -1,7 +1,7 @@
 # 行情哨兵 · 测试与部署验收报告
 
 > 日期：2026-11-16
-> 版本：v1.0.0（含 2026-11-09 行情图指标、2026-11-14 移动端/PushPlus、2026-11-15 专业图表、2026-11-16 历史回放增量）
+> 版本：v1.0.0（含 2026-11-09 行情图指标、2026-11-14 移动端/PushPlus、2026-11-15 专业图表、2026-11-16 历史回放/本地增量/结果保存增量）
 > 说明：本报告记录 v1.0.0 在本地 macOS + Docker 验收环境的结果；自动化测试命令可在任意支持 Node 24 的环境复现。  
 > 结论：在本文定义的范围内，**全部自动化测试通过，无已知未修复功能缺陷**；Docker 容器已在本机部署并通过健康检查。  
 > 注意：测试不能证明软件绝对没有缺陷；“无已知 bug”仅代表已覆盖场景全部通过。
@@ -25,9 +25,9 @@
 | 测试层 | 结果 |
 |---|---|
 | TypeScript 类型检查 | 通过 |
-| 单元 + 集成测试 | **24 个测试文件，118 个测试全部通过**（~2s 测试耗时） |
-| 浏览器 E2E | **10 个场景全部通过**（~16s） |
-| 构建 | 通过（Vite + esbuild；服务端 178 KB，主前端 1.52 MB / 494 KB gzip；KLineChart 共享懒加载 chunk 265 KB / 70 KB gzip；回放页 chunk 19 KB / 6 KB gzip） |
+| 单元 + 集成测试 | **25 个测试文件，125 个测试全部通过**（~2s 测试耗时） |
+| 浏览器 E2E | **10 个场景全部通过**（~17s） |
+| 构建 | 通过（Vite + esbuild；服务端 191 KB，主前端 1.52 MB / 494 KB gzip；KLineChart 共享懒加载 chunk 265 KB / 70 KB gzip；回放页 chunk 19 KB / 6 KB gzip） |
 | 依赖安全审计 | `npm audit`、`npm audit --omit=dev` 均为 **0 vulnerabilities** |
 | Docker 镜像 | `market-sentinel:1.0.0`，约 266 MB |
 | 容器健康 | `healthy` |
@@ -63,7 +63,8 @@ http://127.0.0.1:8787
 | `tests/unit/indicator-readout.test.ts` | 2 | 指标名称/参数/当前值图例、隐藏指标、空数据 |
 | `tests/unit/volume-profile.test.ts` | 5 | Volume Profile/POC/VA、K 线归一化、图表配置迁移与持久化 |
 | `tests/integration/chart-api.test.ts` | 3 | K 线 before 分页、非法参数、SSE 首帧与响应头 |
-| `tests/integration/rule-replay.test.ts` | 2 | 已保存规则回放 API、触发元数据、非法品种/窗口/规则 404 |
+| `tests/integration/rule-replay.test.ts` | 3 | 已保存规则回放 API、图表周期、触发元数据、记录保存/读取、非法参数/规则 404 |
+| `tests/integration/history.test.ts` | 6 | 本地完整复用、前缀/尾部/内部缺口增量补齐、二次复用、缺口拒绝与覆盖率 |
 | `tests/integration/pushplus.test.ts` | 7 | PushPlus payload、固定端点、成功/429/5xx/业务错误、Token 脱敏、渠道投递全链路 |
 | `tests/integration/api.test.ts` | 9 | 规则 CRUD、预览、设置脱敏、CSRF、事件、Discord 投递、数据接口、试跑 |
 | `tests/integration/api-extra.test.ts` | 5 | 设置测试端点、永久失败手动重试、事件快照不可变、过滤与 404 |
@@ -80,7 +81,7 @@ http://127.0.0.1:8787
 2. 空名称规则保存被阻止，出现校验错误，未创建规则。
 3. 规则从列表暂停 → 恢复；确保状态从“已暂停”恢复为监控/满足状态。
 4. 规则编辑器实时预览 → 打开试跑 Modal → 运行历史回放 → 渲染触发统计和 ECharts K 线图。
-5. 已保存规则历史回放：从规则列表打开独立回放页 → 自动加载历史窗口 → 复用专业 KLineChart 工作台渲染 K 线和编号标记 → 点击清单定位触发 → 触发清单展示 #序号与条件快照。
+5. 已保存规则历史回放：从规则列表打开独立回放页 → 首次自动运行并保存 → 复用专业 KLineChart 工作台渲染 K 线和编号标记 → 编辑指标面板、切换 15m 图表周期 → 刷新页面载入最新保存结果且不重复运行 → 切换回看窗口后更新图表。
 6. 行情图指标面板：打开面板 → 启用/配置 KDJ 与 RSI → 关闭并刷新 → 设置持久化 → 点击图例隐藏成交量 → 从面板重新启用。
 7. PushPlus：设置页选择微信 PushPlus → 填写 Token/topic → 保存 → 发送测试消息 → 规则编辑器显示 PushPlus 文本预览并发送测试；Token 掩码、当前渠道和 mock 请求均已验证。
 8. 移动端布局：390px 下底部导航、图表指标底部面板、规则卡片、事件摘要与全屏抽屉、历史回放、设置页和规则编辑器均无横向溢出；768px 与 1024px 断点也通过。
@@ -115,10 +116,12 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 
 ### 历史回放
 
-- 已保存规则可从列表或编辑页进入独立回放页，自动执行默认 7 天窗口。
+- 首次进入独立回放页自动执行默认 7 天窗口并保存；后续进入载入最近一次记录，不重复运行。
+- 每次“运行并保存”写入 SQLite 快照（规则版本、品种、窗口、图表周期、触发数、数据来源、结果 JSON），可切换历史记录。
+- 回放页复用「专业图表」的 KLineChart 工作台（指标、Volume Profile、画线、截图、全屏、OHLC 读数），支持 24 个图表周期；静态历史数据由 `StaticChartDataLoader` 提供。
 - 历史评估复用同一个 `runTrial` / 指标/表达式实现；只读已收盘 K 线，不使用未来数据。
-- 返回的 `triggers` 包含触发时间、K 线开收盘时间、价格、触发模式、条件快照和 marker 类型；`candles` 覆盖完整回放窗口。
-- 回放页复用「专业图表」的 KLineChart 工作台（指标、Volume Profile、画线、截图、全屏、OHLC 读数），静态历史数据由 `StaticChartDataLoader` 提供。
+- 行情优先查询本地 `candles` 表；只有缺失区间才调用 OKX 补齐，补齐后再次回放不重复请求。
+- 数据源和覆盖情况返回 `TrialDataInfo`：`local` / `local+remote` / `remote`、本地根数、增量根数、覆盖率、首尾缺口；内部缺口拒绝运行，首尾不足允许在连续区间运行并提示。
 - K 线图上显示与清单一致的 `#序号` 标记；点击清单行可定位到对应 K 线，触发过多时只显示标记点。
 - 触发清单支持滚动，展示条件周期、指标、比较符和触发时的实际值；单次最多 500 条快照。
 - 回放不发送通知、不写事件；历史盘中 tick 无法还原，盘中规则按收盘口径模拟。
@@ -200,11 +203,12 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 3. **没有进行 24 小时壁钟连续运行**：进行了 864 根 5m K 线（3 天）的加速回放、WebSocket 断线重连测试和真实容器短时运行；长时间网络/系统休眠行为仍需在真实使用中观察。
 4. 盘中模式使用未收盘 K 线，历史盘中路径无法还原；试跑与历史回放按收盘口径计算。
 5. 历史回放不是盈亏回测，不评估策略有效性；单次最多保存 500 条触发快照。
-6. 同一时间只使用一个通知渠道（Discord 或 PushPlus）；不自动下单；不支持序列条件（A 后 N 根内 B）。
-7. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
-8. 前端仍保留 ECharts 供总览/试跑使用，同时新增 KLineChart 懒加载 chunk；Vite 对旧主包有 chunk size 警告，不影响功能。
-9. KLineChart 自定义 Volume Profile 使用可见范围与价格桶近似，不是订单簿逐笔数据。
-10. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
+6. 本地历史只拒绝内部缺口；首尾数据不足时允许在连续可用区间运行，并显示覆盖率与缺口数量。历史回放记录默认保存在本机 SQLite，暂不自动清理。
+7. 同一时间只使用一个通知渠道（Discord 或 PushPlus）；不自动下单；不支持序列条件（A 后 N 根内 B）。
+8. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
+9. 前端仍保留 ECharts 供总览/试跑使用，同时新增 KLineChart 懒加载 chunk；Vite 对旧主包有 chunk size 警告，不影响功能。
+10. KLineChart 自定义 Volume Profile 使用可见范围与价格桶近似，不是订单簿逐笔数据。
+11. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
 
 ## 8. 复现命令
 

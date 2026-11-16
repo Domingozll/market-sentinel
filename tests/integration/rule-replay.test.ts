@@ -17,6 +17,7 @@ function preparedMarket() {
   }
   const market = new FakeMarket(endClose + 5000);
   market.setHistory(symbol, '5m', candles);
+  market.setHistory(symbol, '15m', makeCandles({ instId: symbol, timeframe: '15m', count: 500, endCloseTime: endClose }));
   return market;
 }
 
@@ -84,6 +85,49 @@ describe('saved rule historical replay', () => {
     });
     expect(replay.body.triggers[0].conditions.length).toBe(1);
     expect(replay.body.candles.length).toBeGreaterThan(0);
+  });
+
+  it('persists each run and returns it without re-running the trial', async () => {
+    runtime = await buildTestRuntime({ market: preparedMarket() });
+    const created = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: '/api/rules',
+      payload: { ...draft, enabled: true },
+    });
+    const id = created.body.rule.id as string;
+
+    const run = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/rules/${id}/replays`,
+      payload: { symbol, windowDays: 1, chartTimeframe: '15m' },
+    });
+    expect(run.statusCode).toBe(201);
+    expect(run.body.replay.result).toMatchObject({
+      symbol,
+      timeframe: '15m',
+      signalTimeframe: '5m',
+      windowDays: 1,
+    });
+    expect(run.body.replay.result.data.source).toMatch(/local|remote/);
+    expect(run.body.replay.ruleVersion).toBe(1);
+
+    const listed = await jsonRequest(runtime.runtime, { method: 'GET', url: `/api/rules/${id}/replays` });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.body.replays).toHaveLength(1);
+    expect(listed.body.replays[0]).toMatchObject({
+      id: run.body.replay.id,
+      symbol,
+      chartTimeframe: '15m',
+      signalTimeframe: '5m',
+    });
+
+    const saved = await jsonRequest(runtime.runtime, { method: 'GET', url: `/api/replays/${run.body.replay.id}` });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.body.replay.result.triggers.length).toBe(run.body.replay.result.triggers.length);
+    expect(saved.body.replay.result.candles.length).toBe(run.body.replay.result.candles.length);
+
+    const listedAgain = await jsonRequest(runtime.runtime, { method: 'GET', url: `/api/rules/${id}/replays` });
+    expect(listedAgain.body.replays).toHaveLength(1);
   });
 
   it('rejects invalid symbols/windows and unknown rules', async () => {

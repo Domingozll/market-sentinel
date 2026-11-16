@@ -101,12 +101,17 @@ test.describe.serial('Market Sentinel system flow', () => {
 
 
   test('saved rule replay shows historical candles, markers and trigger list', async ({ page }) => {
+    let replayRuns = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && /\/replays$/.test(new URL(request.url()).pathname)) replayRuns++;
+    });
     await page.goto('/rules', { waitUntil: 'domcontentloaded' });
     await page.getByTestId('rule-history').first().click();
     await expect(page.getByText('历史 K 线与通知位置')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('replay-chart').locator('canvas').first()).toBeVisible();
     await expect(page.getByTestId('replay-list')).toBeVisible();
+    await expect(page.getByTestId('replay-data-info')).toBeVisible();
     const rows = page.getByTestId('replay-row');
     if (await rows.count()) {
       await expect(rows.first()).toContainText('#1');
@@ -116,6 +121,29 @@ test.describe.serial('Market Sentinel system flow', () => {
     } else {
       await expect(page.getByTestId('replay-list')).toContainText('窗口内没有触发');
     }
+
+    // Indicators are the same editable KLineChart workspace used by the chart page.
+    await page.getByTestId('replay-chart-indicators').click();
+    await expect(page.getByTestId('chart-indicator-panel')).toBeVisible();
+    await page.getByRole('button', { name: '关闭指标面板' }).click();
+
+    // Switching the chart timeframe runs and saves a new snapshot.
+    const runsBeforeTimeframe = replayRuns;
+    await page.getByTestId('replay-chart-timeframe').selectOption('15m');
+    await page.getByTestId('run-replay').click();
+    await expect(page.locator('.replay-chart-card .panel-sub')).toContainText('15m', { timeout: 20_000 });
+    expect(replayRuns).toBe(runsBeforeTimeframe + 1);
+
+    // Reloading loads the latest saved result instead of running again.
+    const runsBeforeReload = replayRuns;
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('replay-chart-timeframe')).toHaveValue('15m');
+    expect(replayRuns).toBe(runsBeforeReload);
+    await expect(page.getByTestId('replay-history').locator('option')).toHaveCount(3);
+    await expect(page.getByTestId('replay-chart').locator('canvas').first()).toBeVisible();
+
+    // The saved result can be re-run with another window and updates the chart.
     await page.getByTestId('replay-window-30').click();
     await page.getByTestId('run-replay').click();
     await expect(page.locator('.trial-metric').filter({ hasText: '回看窗口' })).toContainText('30', { timeout: 20_000 });

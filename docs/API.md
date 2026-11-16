@@ -209,22 +209,26 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 {
   "rule": { "...": "同创建格式" },
   "symbol": "BTC-USDT-SWAP",
-  "windowDays": 7
+  "windowDays": 7,
+  "chartTimeframe": "15m"
 }
 ```
 
-`windowDays` 1–30；1m 规则最多 7 天。返回 `triggerCount`、`perDay`、`triggers`、`triggersTruncated`、`candles`、`indicators` 和 `warning`。
+`windowDays` 1–30；1m 规则最多 7 天。`chartTimeframe` 可选（默认规则最短周期），支持 `TIMEFRAMES` 中的 24 个周期。返回 `triggerCount`、`perDay`、`triggers`、`triggersTruncated`、`candles`、`indicators`、`data` 和 `warning`。
 
 ### `POST /api/rules/:id/trial`
 
-对已保存规则执行历史回放。请求体只需品种和窗口，回放使用数据库中的当前规则版本；不发送通知、不写入事件。
+对已保存规则执行临时历史回放（不保存记录）。回放使用数据库中的当前规则版本；不发送通知、不写入事件。
 
 ```json
 {
   "symbol": "BTC-USDT-SWAP",
-  "windowDays": 7
+  "windowDays": 7,
+  "chartTimeframe": "15m"
 }
 ```
+
+`chartTimeframe` 可选。行情优先读取本地 `candles`，缺失区间增量补齐；`timeframe` 是图表周期，`signalTimeframe` 是规则实际评估周期。
 
 成功返回：
 
@@ -234,7 +238,17 @@ curl -X POST http://127.0.0.1:8787/api/rules \
   "perDay": 3.43,
   "windowDays": 7,
   "symbol": "BTC-USDT-SWAP",
-  "timeframe": "5m",
+  "timeframe": "15m",
+  "signalTimeframe": "5m",
+  "data": {
+    "source": "local+remote",
+    "localBars": 2216,
+    "fetchedBars": 200,
+    "coverage": 1,
+    "gaps": 0,
+    "from": 1793600000000,
+    "to": 1794211800000
+  },
   "triggersTruncated": false,
   "triggers": [
     {
@@ -255,7 +269,54 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 }
 ```
 
-`candles` 覆盖完整回放窗口，前端用 `#序号` 与 `triggers` 顺序对应。单次最多保留 500 条触发快照，`triggersTruncated` 表示超出上限。历史数据不足返回 422，规则不存在返回 404。
+`candles` 覆盖完整回放窗口（图表周期），前端用 `#序号` 与 `triggers` 顺序对应。单次最多保留 500 条触发快照，`triggersTruncated` 表示超出上限。
+
+`data.source` 为 `local`、`local+remote` 或 `remote`；`gaps` 表示首尾未覆盖的 K 线数量。内部缺口拒绝运行并返回 422；首尾历史不足允许在连续区间运行并返回覆盖率。历史数据不足返回 422，规则不存在返回 404。
+
+### `POST /api/rules/:id/replays`
+
+运行并保存一条回放记录。请求与 `/api/rules/:id/trial` 相同：
+
+```json
+{
+  "symbol": "BTC-USDT-SWAP",
+  "windowDays": 7,
+  "chartTimeframe": "15m"
+}
+```
+
+成功返回 `201`：
+
+```json
+{
+  "replay": {
+    "id": "…",
+    "ruleId": "…",
+    "ruleName": "5m 下轨触及",
+    "ruleVersion": 3,
+    "symbol": "BTC-USDT-SWAP",
+    "windowDays": 7,
+    "chartTimeframe": "15m",
+    "signalTimeframe": "5m",
+    "triggerCount": 24,
+    "dataSource": "local",
+    "fetchedBars": 0,
+    "coverage": 1,
+    "createdAt": 1794211800000,
+    "result": { "...": "同 TrialResult" }
+  }
+}
+```
+
+记录保存在本机 SQLite，包含完整 `TrialResult` 快照；前端进入回放页时优先读取最近记录，不再自动运行。
+
+### `GET /api/rules/:id/replays`
+
+查询参数 `limit`（1–100，默认 20）。返回 `{ replays: ReplaySummary[] }`，不含完整结果。
+
+### `GET /api/replays/:id`
+
+返回 `{ replay: ReplayRecord }`，包含保存时的完整结果、规则版本和数据来源。
 
 ## 事件
 

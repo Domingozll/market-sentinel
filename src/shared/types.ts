@@ -394,18 +394,53 @@ export interface TrialTrigger {
   markerType: 'trigger';
 }
 
+export interface TrialDataInfo {
+  source: 'local' | 'local+remote' | 'remote';
+  localBars: number;
+  fetchedBars: number;
+  coverage: number;
+  gaps: number;
+  from: number;
+  to: number;
+}
+
 export interface TrialResult {
   triggerCount: number;
   perDay: number;
   windowDays: number;
   symbol: string;
+  /** Timeframe rendered on the replay chart. */
   timeframe: Timeframe;
+  /** Timeframe used by the rule evaluator (shortest referenced timeframe). */
+  signalTimeframe: Timeframe;
+  data: TrialDataInfo;
   triggers: TrialTrigger[];
   /** True when the run produced more than the 500 stored trigger snapshots. */
   triggersTruncated: boolean;
   candles: { openTime: number; open: number; high: number; low: number; close: number; volume: number }[];
   indicators: { upper: (number | null)[]; middle: (number | null)[]; lower: (number | null)[] };
   warning: string;
+}
+
+
+export interface ReplaySummary {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  ruleVersion: number;
+  symbol: string;
+  windowDays: number;
+  chartTimeframe: Timeframe;
+  signalTimeframe: Timeframe;
+  triggerCount: number;
+  dataSource: TrialDataInfo['source'];
+  fetchedBars: number;
+  coverage: number;
+  createdAt: number;
+}
+
+export interface ReplayRecord extends ReplaySummary {
+  result: TrialResult;
 }
 
 export const AGGREGATE_STATUS_LABEL: Record<AggregateRuleStatus, string> = {
