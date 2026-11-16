@@ -13,6 +13,7 @@ import {
 import type { Store } from '../store';
 import type { MarketDataProvider, PairRef } from '../market/provider';
 import { pairKey } from '../market/provider';
+import { isUsMarketTradingDay } from '../usMarketCalendar';
 import { evaluateRule, type EvaluationOutcome } from './evaluator';
 import { collectTimeframes, flattenConditions } from './schema';
 
@@ -469,6 +470,14 @@ export class RuleEngine extends EventEmitter {
   private createEvent(rule: Rule, state: ManagedState, evaluation: RuleEvaluation, now: number): boolean {
     if (evaluation.triggerBarTs === null || evaluation.price === null) return false;
     const triggerAt = rule.triggerMode === 'close' ? (evaluation.triggerBarCloseTs ?? now) : now;
+    if (rule.skipUsNonTradingDays && !isUsMarketTradingDay(triggerAt)) {
+      this.emit('usMarketFilterSuppressed', {
+        ruleId: rule.id,
+        symbol: state.symbol,
+        triggerAt,
+      });
+      return false;
+    }
     const eventId = randomUUID();
     const notificationConfigured = this.isNotificationConfigured();
     const notificationChannel = this.getNotificationChannel();

@@ -15,6 +15,7 @@ import type { Store } from './store';
 import { compareValues, computeSeries, type Series } from './indicators';
 import { collectTimeframes, evaluateExpression, flattenConditions, shortestTimeframe } from './rules/schema';
 import { loadLocalFirstHistory, type HistoryLoad } from './history';
+import { isUsMarketTradingDay } from './usMarketCalendar';
 
 export class TrialError extends Error {
   statusCode: number;
@@ -83,6 +84,9 @@ export async function runTrial(options: {
   }
   if (chartTimeframe !== referenceTimeframe) {
     warnings.push(`图表周期为 ${chartTimeframe}，规则评估周期为 ${referenceTimeframe}`);
+  }
+  if (draft.skipUsNonTradingDays) {
+    warnings.push('已过滤美股非交易日（周末 + NYSE/Nasdaq 全休市日）');
   }
 
   const historyLoads = new Map<Timeframe, HistoryLoad>();
@@ -230,25 +234,28 @@ export async function runTrial(options: {
       continue;
     }
     if (!previousTruth && result.truth) {
-      const cooldownMs = draft.cooldownSec * 1000;
-      if (lastTriggerAt === null || eventTime - lastTriggerAt >= cooldownMs) {
-        triggerCount++;
-        if (triggers.length < 500) {
-          const refIndex = pointers.get(referenceTimeframe)!;
-          const referenceBar = referenceHistory.candles[refIndex];
-          triggers.push({
-            triggerAt: eventTime,
-            barOpenTime: referenceBar.openTime,
-            barCloseTime: referenceBar.openTime + TF_MS[referenceTimeframe],
-            price: referenceBar.close,
-            triggerMode: draft.triggerMode,
-            conditions: result.evaluation,
-            truth: result.truth,
-            alreadyMatched: false,
-            markerType: 'trigger',
-          });
+      const usMarketAllowed = !draft.skipUsNonTradingDays || isUsMarketTradingDay(eventTime);
+      if (usMarketAllowed) {
+        const cooldownMs = draft.cooldownSec * 1000;
+        if (lastTriggerAt === null || eventTime - lastTriggerAt >= cooldownMs) {
+          triggerCount++;
+          if (triggers.length < 500) {
+            const refIndex = pointers.get(referenceTimeframe)!;
+            const referenceBar = referenceHistory.candles[refIndex];
+            triggers.push({
+              triggerAt: eventTime,
+              barOpenTime: referenceBar.openTime,
+              barCloseTime: referenceBar.openTime + TF_MS[referenceTimeframe],
+              price: referenceBar.close,
+              triggerMode: draft.triggerMode,
+              conditions: result.evaluation,
+              truth: result.truth,
+              alreadyMatched: false,
+              markerType: 'trigger',
+            });
+          }
+          lastTriggerAt = eventTime;
         }
-        lastTriggerAt = eventTime;
       }
     }
     previousTruth = result.truth;

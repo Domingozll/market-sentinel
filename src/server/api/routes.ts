@@ -256,6 +256,7 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
       cooldownSec: existing.cooldownSec,
       expression: existing.expression,
       note: existing.note,
+      skipUsNonTradingDays: existing.skipUsNonTradingDays === true,
     };
     const rule = store.insertRule(draft, false);
     engine.reloadRules();

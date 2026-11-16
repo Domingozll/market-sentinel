@@ -91,17 +91,18 @@ interface Harness {
   cleanup: () => Promise<void>;
 }
 
-async function harness(draft: RuleDraft, options: { candles?: Candle[]; fifteen?: Candle[]; enabled?: boolean; initialTouch?: boolean } = {}): Promise<Harness> {
+async function harness(draft: RuleDraft, options: { candles?: Candle[]; fifteen?: Candle[]; enabled?: boolean; initialTouch?: boolean; endCloseTime?: number } = {}): Promise<Harness> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-engine-'));
   const store = new Store(dir);
-  const five = options.candles ?? makeCandles({ instId: symbol, timeframe: '5m', count: 320, endCloseTime: endClose });
+  const closeTime = options.endCloseTime ?? endClose;
+  const five = options.candles ?? makeCandles({ instId: symbol, timeframe: '5m', count: 320, endCloseTime: closeTime });
   const last = five[five.length - 1];
   five[five.length - 1] = {
     ...last,
     low: options.initialTouch ? 0 : last.close - 0.01,
     high: Math.max(last.high, last.close + 1),
   };
-  const market = new FakeMarket(endClose + 5000);
+  const market = new FakeMarket(closeTime + 5000);
   market.seed(symbol, '5m', five);
   if (options.fifteen) market.seed(symbol, '15m', options.fifteen);
   const rule = makeRule(draft, options.enabled ?? true);
@@ -113,6 +114,7 @@ async function harness(draft: RuleDraft, options: { candles?: Candle[]; fifteen?
       cooldownSec: rule.cooldownSec,
       expression: rule.expression,
       note: rule.note,
+      skipUsNonTradingDays: rule.skipUsNonTradingDays,
     },
     rule.enabled,
   );
@@ -189,6 +191,20 @@ describe('RuleEngine lifecycle', () => {
     h.market.emit('closed', triggerBar, 'ws');
     h.engine.flush();
     expect(h.store.listEvents().total).toBe(1);
+  });
+
+  it('suppresses a new event on a US market holiday but still updates state', async () => {
+    const holidayClose = Date.parse('2025-01-01T17:00:00Z'); // 12:00 America/New_York, New Year
+    h = await harness(touchDraft({ skipUsNonTradingDays: true }), { endCloseTime: holidayClose });
+    const rule = getOnlyRule(h.store);
+    const stateBefore = h.engine.getStatesForRule(rule.id)[0];
+    expect(stateBefore.status).toBe('armed');
+    const prev = h.candles.at(-1)!;
+    h.market.pushClosed(nextBar(holidayClose, prev.close, { touch: true }));
+    h.engine.flush();
+    const stateAfter = h.engine.getStatesForRule(rule.id)[0];
+    expect(stateAfter.status).toBe('satisfied');
+    expect(h.store.listEvents().total).toBe(0);
   });
 
   it('does not notify when the condition is already true at baseline', async () => {

@@ -78,6 +78,7 @@ Market Sentinel 的 HTTP API 与 Web UI 使用同一套 Fastify 路由。默认�
   "triggerMode": "close",
   "cooldownSec": 300,
   "enabled": true,
+  "skipUsNonTradingDays": false,
   "note": "",
   "expression": {
     "kind": "group",
@@ -109,8 +110,13 @@ Market Sentinel 的 HTTP API 与 Web UI 使用同一套 Fastify 路由。默认�
 | `triggerMode` | `close`（默认）或 `intrabar` |
 | `cooldownSec` | 0–86400 |
 | `enabled` | 是否启用 |
+| `skipUsNonTradingDays` | 可选，默认 `false`；为 `true` 时不因美股周末/节假日产生新信号 |
 | `note` | 可选备注，最多 200 字 |
-| `expression` | 条件或条件组 |
+| `expression` | 条件或条件组；固定数值支持负数和小数 |
+
+`skipUsNonTradingDays` 使用 `America/New_York` 日历，覆盖周末、NYSE/Nasdaq 常规全休市日和已记录的历史临时休市；早收盘日仍算交易日。过滤只抑制新事件，规则状态仍持续更新，因此不会在恢复交易时补发休市期间积累的旧信号。
+
+固定数值阈值必须是有限数字，允许负数和小数，例如 `-1.25`、`0.5`；服务端不会把负值视为非法值。`ratio` 等指标极端的负阈值可能返回单位范围的软警告，但不阻止保存。
 
 条件组：
 

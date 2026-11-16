@@ -30,6 +30,7 @@ interface RuleRow {
   cooldown_sec: number;
   expression_json: string;
   note: string;
+  skip_us_non_trading_days: number;
   version: number;
   created_at: number;
   updated_at: number;
@@ -153,6 +154,7 @@ CREATE TABLE IF NOT EXISTS rules (
   cooldown_sec INTEGER NOT NULL,
   expression_json TEXT NOT NULL,
   note TEXT NOT NULL DEFAULT '',
+  skip_us_non_trading_days INTEGER NOT NULL DEFAULT 0,
   version INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -265,6 +267,7 @@ function mapRule(row: RuleRow): Rule {
     cooldownSec: row.cooldown_sec,
     expression: JSON.parse(row.expression_json) as ExpressionNode,
     note: row.note,
+    skipUsNonTradingDays: Boolean(row.skip_us_non_trading_days),
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -332,10 +335,18 @@ export class Store {
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');
     this.db.exec(SCHEMA);
     this.ensureDeliveryChannelColumn();
+    this.ensureRuleFilterColumn();
     try {
       fs.chmodSync(this.dbPath, 0o600);
     } catch {
       // Best effort; the data directory is still restricted.
+    }
+  }
+
+  private ensureRuleFilterColumn(): void {
+    const columns = this.db.prepare('PRAGMA table_info(rules)').all() as { name: string }[];
+    if (!columns.some((column) => column.name === 'skip_us_non_trading_days')) {
+      this.db.exec('ALTER TABLE rules ADD COLUMN skip_us_non_trading_days INTEGER NOT NULL DEFAULT 0');
     }
   }
 
@@ -407,8 +418,8 @@ export class Store {
     this.db
       .prepare(
         `INSERT INTO rules
-          (id, name, enabled, symbols_json, trigger_mode, cooldown_sec, expression_json, note, version, created_at, updated_at, archived_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+          (id, name, enabled, symbols_json, trigger_mode, cooldown_sec, expression_json, note, skip_us_non_trading_days, version, created_at, updated_at, archived_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
       )
       .run(
         rule.id,
@@ -419,6 +430,7 @@ export class Store {
         rule.cooldownSec,
         JSON.stringify(rule.expression),
         rule.note ?? '',
+        rule.skipUsNonTradingDays ? 1 : 0,
         rule.version,
         rule.createdAt,
         rule.updatedAt,
@@ -435,7 +447,7 @@ export class Store {
     this.db
       .prepare(
         `UPDATE rules SET name=?, symbols_json=?, trigger_mode=?, cooldown_sec=?, expression_json=?, note=?,
-         enabled=?, version=?, updated_at=? WHERE id=? AND archived_at IS NULL`,
+         skip_us_non_trading_days=?, enabled=?, version=?, updated_at=? WHERE id=? AND archived_at IS NULL`,
       )
       .run(
         draft.name,
@@ -444,6 +456,7 @@ export class Store {
         draft.cooldownSec,
         JSON.stringify(draft.expression),
         draft.note ?? '',
+        draft.skipUsNonTradingDays ? 1 : 0,
         nextEnabled ? 1 : 0,
         version,
         updatedAt,

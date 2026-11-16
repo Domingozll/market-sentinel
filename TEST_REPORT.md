@@ -1,7 +1,7 @@
 # 行情哨兵 · 测试与部署验收报告
 
 > 日期：2026-11-16
-> 版本：v1.0.0（含 2026-11-09 行情图指标、2026-11-14 移动端/PushPlus、2026-11-15 专业图表、2026-11-16 历史回放/本地增量/结果保存/版本缓存失效增量）
+> 版本：v1.0.0（含 2026-11-09 行情图指标、2026-11-14 移动端/PushPlus、2026-11-15 专业图表、2026-11-16 历史回放/本地增量/结果保存/版本缓存失效、负数阈值/美股交易日过滤增量）
 > 说明：本报告记录 v1.0.0 在本地 macOS + Docker 验收环境的结果；自动化测试命令可在任意支持 Node 24 的环境复现。  
 > 结论：在本文定义的范围内，**全部自动化测试通过，无已知未修复功能缺陷**；Docker 容器已在本机部署并通过健康检查。  
 > 注意：测试不能证明软件绝对没有缺陷；“无已知 bug”仅代表已覆盖场景全部通过。
@@ -25,9 +25,9 @@
 | 测试层 | 结果 |
 |---|---|
 | TypeScript 类型检查 | 通过 |
-| 单元 + 集成测试 | **25 个测试文件，126 个测试全部通过**（~2s 测试耗时） |
-| 浏览器 E2E | **11 个场景全部通过**（~20s） |
-| 构建 | 通过（Vite + esbuild；服务端 193 KB，主前端 1.52 MB / 494 KB gzip；KLineChart 共享懒加载 chunk 265 KB / 70 KB gzip；回放页 chunk 19 KB / 6 KB gzip） |
+| 单元 + 集成测试 | **27 个测试文件，137 个测试全部通过**（~2s 测试耗时） |
+| 浏览器 E2E | **12 个场景全部通过**（~22s） |
+| 构建 | 通过（Vite + esbuild；服务端 199 KB，主前端 1.52 MB / 494 KB gzip；KLineChart 共享懒加载 chunk 265 KB / 70 KB gzip；回放页 chunk 19 KB / 6 KB gzip） |
 | 依赖安全审计 | `npm audit`、`npm audit --omit=dev` 均为 **0 vulnerabilities** |
 | Docker 镜像 | `market-sentinel:1.0.0`，约 266 MB |
 | 容器健康 | `healthy` |
@@ -51,18 +51,20 @@ http://127.0.0.1:8787
 |---|---:|---|
 | `tests/unit/indicators.test.ts` | 14 | SMA/EMA、布林带总体标准差、KDJ 9/3/3、RSI Wilder、MACD、成交量倍数、比较符 |
 | `tests/unit/time.test.ts` | 5 | OKX 全部周期边界（6H/12H/周/月/UTC 变体）、收盘宽限、K 线连续性 |
-| `tests/unit/rules.test.ts` | 10 | 规则 schema、参数校验、嵌套、单位警告、摘要、多周期表达式、盘中形成 K 线 |
-| `tests/unit/engine.test.ts` | 7 | 边沿触发、基线、冷却、重复推送幂等、盘中路标/收盘确认、重连重建基线 |
+| `tests/unit/rules.test.ts` | 11 | 规则 schema、负数/小数阈值、美股过滤开关、参数校验、嵌套、单位警告、摘要、多周期表达式 |
+| `tests/unit/engine.test.ts` | 8 | 边沿触发、基线、冷却、重复推送幂等、盘中路标/收盘确认、重连重建基线、美股休市信号抑制 |
 | `tests/unit/engine-extra.test.ts` | 4 | 多品种独立状态、重启去重、盘中收盘确认、迟到信号压制 |
-| `tests/unit/trial.test.ts` | 6 | 试跑触发计数、冷却、窗口基线、盘中警示、周期窗口限制 |
+| `tests/unit/trial.test.ts` | 7 | 试跑触发计数、冷却、窗口基线、盘中警示、周期窗口限制、美股休市过滤 |
 | `tests/unit/soak.test.ts` | 1 | 864 根未来 5m K 线（3 天）加速回放：事件不丢不重、无异常 |
 | `tests/unit/web-format.test.ts` | 6 | 时间/数字/时长格式化、状态映射、自然语言摘要、模板 schema |
-| `tests/unit/rule-builder.test.tsx` | 2 | 条件构建器交互、AND/OR、添加/删除、条件数量上限 |
+| `tests/unit/rule-builder.test.tsx` | 3 | 条件构建器交互、负数/小数阈值输入、AND/OR、添加/删除、条件数量上限 |
 | `tests/unit/chart-indicators.test.ts` | 5 | 图表指标默认值、范围钳制、MACD 关系、图例标签、localStorage 持久化 |
 | `tests/unit/chart-indicator-panel.test.tsx` | 2 | 指标面板开关、参数编辑、恢复默认、Escape 关闭 |
 | `tests/unit/indicator-readout.test.ts` | 2 | 指标名称/参数/当前值图例、隐藏指标、空数据 |
 | `tests/unit/volume-profile.test.ts` | 5 | Volume Profile/POC/VA、K 线归一化、图表配置迁移与持久化 |
 | `tests/integration/chart-api.test.ts` | 3 | K 线 before 分页、非法参数、SSE 首帧与响应头 |
+| `tests/unit/us-market-calendar.test.ts` | 5 | 周末、常规 NYSE 节假日、观测日、耶稣受难日、Juneteenth、早收盘、历史临时休市 |
+| `tests/integration/rule-filter.test.ts` | 2 | 美股过滤开关 CRUD、负数/小数阈值持久化、非法过滤值拒绝 |
 | `tests/integration/rule-replay.test.ts` | 4 | 已保存规则回放 API、图表周期、触发元数据、记录保存/读取、规则版本更新后新快照、非法参数/规则 404 |
 | `tests/integration/history.test.ts` | 6 | 本地完整复用、前缀/尾部/内部缺口增量补齐、二次复用、缺口拒绝与覆盖率 |
 | `tests/integration/pushplus.test.ts` | 7 | PushPlus payload、固定端点、成功/429/5xx/业务错误、Token 脱敏、渠道投递全链路 |
@@ -86,8 +88,9 @@ http://127.0.0.1:8787
 7. 行情图指标面板：打开面板 → 启用/配置 KDJ 与 RSI → 关闭并刷新 → 设置持久化 → 点击图例隐藏成交量 → 从面板重新启用。
 8. PushPlus：设置页选择微信 PushPlus → 填写 Token/topic → 保存 → 发送测试消息 → 规则编辑器显示 PushPlus 文本预览并发送测试；Token 掩码、当前渠道和 mock 请求均已验证。
 9. 移动端布局：390px 下底部导航、图表指标底部面板、规则卡片、事件摘要与全屏抽屉、历史回放、设置页和规则编辑器均无横向溢出；768px 与 1024px 断点也通过。
-10. 专业图表：OKX 24 个周期入口、KLineChart 加载、实时最后一根、事件列表/浮层、指标 pane 名称/参数/当前值、主图图例编辑/隐藏/关闭、Volume Profile 计算状态/80 档/显隐、画线持久化、品种/周期 URL、全屏。
-11. 手机专业图表：390px 下 24 周期/指标图例可滚动且无页面横向溢出；原生全屏不可用时 CSS 全屏覆盖整个视口。
+10. 负数阈值与美股过滤：新建规则输入 `-1.25` 固定阈值，勾选“过滤美股非交易日”并保存 → 列表显示过滤标记 → 重新编辑后阈值和开关保持。
+11. 专业图表：OKX 24 个周期入口、KLineChart 加载、实时最后一根、事件列表/浮层、指标 pane 名称/参数/当前值、主图图例编辑/隐藏/关闭、Volume Profile 计算状态/80 档/显隐、画线持久化、品种/周期 URL、全屏。
+12. 手机专业图表：390px 下 24 周期/指标图例可滚动且无页面横向溢出；原生全屏不可用时 CSS 全屏覆盖整个视口。
 
 E2E 同时检查浏览器 console error 与 page error，最终为 0。
 
@@ -127,6 +130,13 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 - K 线图上的信号点使用高亮洋红/琥珀色、光环、竖线和 `#序号` 标签；鼠标悬浮显示规则、时间、触发价、品种、模式和条件快照，点击标记或清单行可互相定位。
 - 触发清单支持滚动，展示条件周期、指标、比较符和触发时的实际值；单次最多 500 条快照。
 - 回放不发送通知、不写事件；历史盘中 tick 无法还原，盘中规则按收盘口径模拟。
+
+### 固定阈值与美股交易日过滤
+
+- 固定数值输入保留本地字符串编辑态，支持 `-1.25`、`.5` 等输入；仅提交有限数字，失焦后规范化，服务端接受负数和小数。
+- 美股过滤器按 `America/New_York` 交易日历判断周末与 NYSE/Nasdaq 全休市日；覆盖观测日、Good Friday、Juneteenth（2022 起）及已知历史临时休市。
+- 早收盘日仍是交易日；过滤只抑制新事件，不阻断规则状态更新；恢复交易后不补发休市期间积累的旧信号。
+- 引擎、试跑/历史回放、规则 API 和前端规则编辑器共用同一过滤字段，规则版本变化会触发回放缓存失效。
 
 ### 数据与可靠性
 
@@ -199,6 +209,7 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 | 14 | 触发密集时编号标签互相遮挡 | 超过 40 条触发时图表只显示标记点，清单保留完整编号并明确说明 |
 | 15 | 回放信号点不够醒目，且无法在图上直接查看信号详情 | 信号点改为高亮洋红/琥珀色光环、竖线和标签；增加鼠标悬浮详情卡（规则/时间/价格/品种/模式/条件），并处理视口边缘定位 |
 | 16 | 编辑规则后重新进入回放页仍载入旧版本快照，看起来像使用了旧规则 | 按 `ruleVersion` 匹配缓存：无当前版本快照时自动按新规则运行并保存，旧快照保留供切换；增加 API 与 E2E 版本失效测试 |
+| 17 | 固定数值输入使用 Number 即时转换，输入 `-`、`.5`、`1.` 时会被 0/NaN 重置，无法正确输入负数和小数 | 改为保留字符串编辑态，只在合法时同步数值，失焦后规范化；增加前端输入与 API 持久化测试 |
 
 ## 7. 已知限制 / 未覆盖项
 
@@ -209,10 +220,12 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 5. 历史回放不是盈亏回测，不评估策略有效性；单次最多保存 500 条触发快照。
 6. 本地历史只拒绝内部缺口；首尾数据不足时允许在连续可用区间运行，并显示覆盖率与缺口数量。历史回放记录默认保存在本机 SQLite，暂不自动清理。
 7. 同一时间只使用一个通知渠道（Discord 或 PushPlus）；不自动下单；不支持序列条件（A 后 N 根内 B）。
-8. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
-9. 前端仍保留 ECharts 供总览/试跑使用，同时新增 KLineChart 懒加载 chunk；Vite 对旧主包有 chunk size 警告，不影响功能。
-10. KLineChart 自定义 Volume Profile 使用可见范围与价格桶近似，不是订单簿逐笔数据。
-11. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
+8. 美股过滤器不预测未来临时休市，只覆盖已记录的历史临时休市；早收盘日不视为非交易日。
+9. 美股过滤器只影响新信号生成，不撤回已经创建的事件或已经进入投递队列的消息。
+10. 容器在 Docker Desktop/macOS 上验证；Linux 上 bind mount 所有者可能被 entrypoint 改为 UID 1000，需部署者知悉。
+11. 前端仍保留 ECharts 供总览/试跑使用，同时新增 KLineChart 懒加载 chunk；Vite 对旧主包有 chunk size 警告，不影响功能。
+12. KLineChart 自定义 Volume Profile 使用可见范围与价格桶近似，不是订单簿逐笔数据。
+13. 未做专业渗透测试；已做的安全测试、依赖审计和默认 loopback 约束见上。
 
 ## 8. 复现命令
 

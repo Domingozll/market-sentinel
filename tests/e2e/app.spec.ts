@@ -389,6 +389,26 @@ test.describe.serial('Market Sentinel system flow', () => {
     });
   });
 
+  test('saves negative decimal thresholds and the US market filter', async ({ page }) => {
+    await page.goto('/rules/new', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: '新建规则' })).toBeVisible();
+    await page.getByTestId('rule-name').fill('负数阈值与美股过滤');
+    await page.getByLabel('条件 1 右侧类型').selectOption('number');
+    const threshold = page.getByLabel('条件 1 阈值');
+    await threshold.fill('-1.25');
+    await expect(threshold).toHaveValue('-1.25');
+    await page.getByTestId('skip-us-non-trading-days').check();
+    await page.getByTestId('save-rule').click();
+    await expect(page).toHaveURL(/\/rules$/);
+
+    const row = page.locator('.rule-list-grid').filter({ hasText: '负数阈值与美股过滤' }).first();
+    await expect(row).toContainText('过滤美股非交易日');
+    await row.locator('button[title="编辑"]').click();
+    await expect(page.getByRole('heading', { name: '编辑规则' })).toBeVisible();
+    await expect(page.getByLabel('条件 1 阈值')).toHaveValue('-1.25');
+    await expect(page.getByTestId('skip-us-non-trading-days')).toBeChecked();
+  });
+
   test.afterAll(async () => {
     expect(consoleErrors, `browser errors: ${consoleErrors.join('\n')}`).toEqual([]);
   });

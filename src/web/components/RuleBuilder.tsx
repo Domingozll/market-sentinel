@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   defaultParamsFor,
   normalizeParams,
@@ -221,6 +222,54 @@ function GroupOpSelect({ op, onChange }: { op: 'AND' | 'OR'; onChange: (op: 'AND
   );
 }
 
+function FixedValueInput({
+  value,
+  ariaLabel,
+  onChange,
+}: {
+  value: number;
+  ariaLabel: string;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setText(String(value));
+  }, [value, editing]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      className="mini-input"
+      data-testid="fixed-value-input"
+      value={text}
+      aria-label={ariaLabel}
+      onFocus={() => setEditing(true)}
+      onChange={(event) => {
+        const raw = event.target.value;
+        setText(raw);
+        // Allow intermediate states such as "-", "-.", "1." and ".5" without
+        // committing NaN/0 and resetting the controlled input while typing.
+        if (!raw.trim() || raw === '-' || raw === '.' || raw === '-.' || /\.$/.test(raw)) return;
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed)) onChange(parsed);
+      }}
+      onBlur={() => {
+        setEditing(false);
+        const parsed = Number(text);
+        if (!text.trim() || !Number.isFinite(parsed)) {
+          setText(String(value));
+        } else {
+          onChange(parsed);
+          setText(String(parsed));
+        }
+      }}
+    />
+  );
+}
+
 function ConditionEditor({
   condition,
   ordinal,
@@ -324,13 +373,10 @@ function ConditionEditor({
           <option value="series">指标值</option>
         </select>
         {condition.right.type === 'number' ? (
-          <input
-            type="number"
-            step="any"
-            className="mini-input"
+          <FixedValueInput
             value={condition.right.value}
-            onChange={(event) => onChange({ ...condition, right: { type: 'number', value: Number(event.target.value) } })}
-            aria-label={`条件 ${ordinal} 阈值`}
+            ariaLabel={`条件 ${ordinal} 阈值`}
+            onChange={(value) => onChange({ ...condition, right: { type: 'number', value } })}
           />
         ) : (
           <select

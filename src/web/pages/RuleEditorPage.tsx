@@ -64,6 +64,7 @@ function toPayload(draft: EditableDraft): RuleDraft & { enabled: boolean } {
     cooldownSec: draft.cooldownSec,
     expression: draft.expression,
     note: draft.note ?? '',
+    skipUsNonTradingDays: draft.skipUsNonTradingDays === true,
     enabled: draft.enabled,
   };
 }
@@ -142,6 +143,7 @@ export function RuleEditorPage() {
           cooldownSec: rule.cooldownSec,
           expression,
           note: rule.note ?? '',
+          skipUsNonTradingDays: rule.skipUsNonTradingDays === true,
           enabled: rule.enabled,
         };
         setDraft(next);
@@ -426,6 +428,19 @@ export function RuleEditorPage() {
                 })
               }
             />
+          </div>
+          <div className="form-field span-8">
+            <span className="form-label">交易日过滤</span>
+            <label className="checkbox-line" style={{ height: 34 }}>
+              <input
+                type="checkbox"
+                data-testid="skip-us-non-trading-days"
+                checked={draft.skipUsNonTradingDays === true}
+                onChange={(event) => updateDraft({ skipUsNonTradingDays: event.target.checked })}
+              />
+              过滤美股非交易日（周末 + NYSE/Nasdaq 全休市日）
+            </label>
+            <span className="form-hint">开启后周末和美股节假日不产生新信号；条件状态仍会更新，恢复交易后不会补发休市期间积累的旧信号。</span>
           </div>
           <div className="form-field span-8">
             <label htmlFor="rule-note">备注（可选，会出现在通知消息中）</label>

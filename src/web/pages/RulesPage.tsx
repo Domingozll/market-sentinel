@@ -235,6 +235,7 @@ function RuleRow({
           {rule.name}
           {rule.symbols.slice(0, 3).map((symbol) => <span className="symbol-tag" key={symbol}>{symbol}</span>)}
           {rule.symbols.length > 3 ? <span className="symbol-tag">+{rule.symbols.length - 3}</span> : null}
+          {rule.skipUsNonTradingDays ? <span className="rule-filter-badge">过滤美股非交易日</span> : null}
         </div>
         <div className="desc">{rule.summary}</div>
       </button>

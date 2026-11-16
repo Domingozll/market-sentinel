@@ -204,6 +204,8 @@ export interface RuleDraft {
   cooldownSec: number;
   expression: ExpressionNode;
   note?: string;
+  /** Skip creating new signals on US equity non-trading days (weekends/NYSE holidays). */
+  skipUsNonTradingDays?: boolean;
 }
 
 export interface Rule extends RuleDraft {

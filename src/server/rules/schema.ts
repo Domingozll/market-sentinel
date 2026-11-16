@@ -282,6 +282,10 @@ export function parseRuleInput(raw: unknown): ParseResult {
   }
   const note = typeof raw.note === 'string' ? raw.note.trim() : '';
   if (note.length > 200) errors.push({ code: 'note.length', message: '备注最多 200 个字符' });
+  const skipUsNonTradingDays = raw.skipUsNonTradingDays;
+  if (skipUsNonTradingDays !== undefined && typeof skipUsNonTradingDays !== 'boolean') {
+    errors.push({ code: 'usMarketFilter.invalid', message: '美股非交易日过滤必须是布尔值' });
+  }
 
   const state = { count: 0, ids: new Set<string>(), nextId: 1 };
   const expression = parseExpression(raw.expression, 1, errors, state);
@@ -295,6 +299,7 @@ export function parseRuleInput(raw: unknown): ParseResult {
     cooldownSec: cooldownSec as number,
     expression,
     note,
+    skipUsNonTradingDays: skipUsNonTradingDays === true,
   };
   return { ok: true, value: { draft, warnings: collectWarnings(expression, errors) } };
 }

@@ -83,6 +83,50 @@ describe('runTrial', () => {
     expect(candles.length).toBe(500);
   });
 
+  it('filters historical triggers on US non-trading days', async () => {
+    const symbol = 'BTC-USDT-SWAP';
+    const holidayClose = Date.parse('2025-01-01T17:00:00Z'); // 12:00 America/New_York, New Year
+    const tf = '5m' as const;
+    const candles = makeCandles({ instId: symbol, timeframe: tf, count: 400, endCloseTime: holidayClose });
+    // A clean false -> true edge on the holiday close.
+    for (let i = 0; i < candles.length; i++) {
+      const isHolidayEdge = i === candles.length - 1;
+      const close = isHolidayEdge ? 110 : 90;
+      candles[i] = {
+        ...candles[i],
+        open: close,
+        high: close + 0.5,
+        low: close - 0.5,
+        close,
+      };
+    }
+    const market = new FakeMarket(holidayClose + 5000);
+    market.setHistory(symbol, tf, candles);
+    const expression: ConditionGroup = {
+      kind: 'group',
+      op: 'AND',
+      children: [{
+        kind: 'condition',
+        id: 'edge',
+        timeframe: tf,
+        left: { series: 'price.close' },
+        cmp: 'gte',
+        right: { type: 'number', value: 100 },
+      }],
+    };
+    const draft = makeDraft({ expression, cooldownSec: 0 });
+    const unfiltered = await runTrial({ draft, symbol, windowDays: 1, market });
+    expect(unfiltered.triggerCount).toBe(1);
+    const filtered = await runTrial({
+      draft: { ...draft, skipUsNonTradingDays: true },
+      symbol,
+      windowDays: 1,
+      market,
+    });
+    expect(filtered.triggerCount).toBe(0);
+    expect(filtered.warning).toContain('已过滤美股非交易日');
+  });
+
   it('warns that intrabar history is simulated as close-confirmed', async () => {
     const { market } = prepare([400]);
     const result = await runTrial({ draft: makeDraft({ triggerMode: 'intrabar' }), symbol, windowDays: 1, market });

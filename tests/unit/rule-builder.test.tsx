@@ -27,6 +27,7 @@ function Harness() {
   return (
     <div>
       <span data-testid="count">{countConditions(expression)}</span>
+      <span data-testid="expression">{JSON.stringify(expression)}</span>
       <RuleBuilder expression={expression} onChange={setExpression} preview={new Map()} />
     </div>
   );
@@ -51,6 +52,24 @@ describe('RuleBuilder', () => {
     expect(screen.getAllByLabelText(/删除条件/)).toHaveLength(2);
     await user.click(screen.getAllByLabelText('删除条件')[0]);
     expect(screen.getByTestId('count')).toHaveTextContent('1');
+  });
+
+  it('accepts negative and decimal fixed thresholds without resetting the input', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.selectOptions(screen.getByLabelText('条件 1 右侧类型'), 'number');
+    const input = screen.getByLabelText('条件 1 阈值');
+    await user.clear(input);
+    await user.type(input, '-1.25');
+    expect(input).toHaveValue('-1.25');
+    expect(screen.getByTestId('expression')).toHaveTextContent('"value":-1.25');
+
+    await user.clear(input);
+    await user.type(input, '.5');
+    expect(input).toHaveValue('.5');
+    expect(screen.getByTestId('expression')).toHaveTextContent('"value":0.5');
+    await user.tab();
+    expect(input).toHaveValue('0.5');
   });
 
   it('creates a nested group and respects the maximum condition count', async () => {

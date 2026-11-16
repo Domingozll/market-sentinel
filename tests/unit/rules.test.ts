@@ -80,6 +80,24 @@ describe('rule schema and summary', () => {
     expect(summary).toContain('布林带下轨');
   });
 
+  it('accepts negative/decimal fixed thresholds and persists the US market filter', () => {
+    const parsed = parseRuleInput(draft({
+      skipUsNonTradingDays: true,
+      expression: condition({ right: { type: 'number', value: -1.25 } }),
+    }));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    const leaf = flattenConditions(parsed.value.draft.expression)[0];
+    expect(leaf.right).toEqual({ type: 'number', value: -1.25 });
+    expect(parsed.value.draft.skipUsNonTradingDays).toBe(true);
+
+    const invalidFilter = parseRuleInput(draft({ skipUsNonTradingDays: 'yes' }));
+    expect(invalidFilter.ok).toBe(false);
+    const defaultFilter = parseRuleInput(draft());
+    expect(defaultFilter.ok).toBe(true);
+    if (defaultFilter.ok) expect(defaultFilter.value.draft.skipUsNonTradingDays).toBe(false);
+  });
+
   it('accepts a nested AND/OR expression and warns on unit mismatch', () => {
     const parsed = parseRuleInput(
       draft({
