@@ -119,6 +119,18 @@ export function RuleReplayPage() {
   const [ruleUpdated, setRuleUpdated] = useState(false);
   const requestSeq = useRef(0);
 
+  useEffect(() => {
+    if (!activeJob) {
+      setJobElapsed(0);
+      return;
+    }
+    const startedAt = activeJob.startedAt ?? activeJob.createdAt;
+    const update = () => setJobElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeJob?.id, activeJob?.startedAt, activeJob?.createdAt]);
+
   function candlesFromResult(next: TrialResult): Candle[] {
     return next.candles.map((candle) => ({
       instId: next.symbol,

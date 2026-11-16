@@ -408,6 +408,7 @@ test.describe.serial('Market Sentinel system flow', () => {
 
     await page.getByTestId('replay-calc-0').click();
     await expect(page.locator('.modal-card')).toBeVisible();
+    await page.locator('.modal-card').getByTestId('position-calculate').click();
     await expect(page.locator('.modal-card').getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
     await noHorizontalOverflow('mobile position calculator');
     await page.locator('.modal-card .modal-foot button').click();
@@ -504,6 +505,7 @@ test.describe.serial('Market Sentinel system flow', () => {
     await page.getByTestId('replay-calc-0').click();
     const modal = page.locator('.modal-card');
     await expect(modal.getByText('仓位计算', { exact: true })).toBeVisible();
+    await modal.getByTestId('position-calculate').click();
     await expect(modal.getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
     await expect(modal.getByTestId('position-calc-single')).toContainText('净盈亏');
     await expect(modal.getByTestId('position-calc-single')).toContainText('开仓时间');
@@ -516,6 +518,7 @@ test.describe.serial('Market Sentinel system flow', () => {
     await exits.nth(0).locator('input[type="number"]').fill('2');
     await exits.nth(1).locator('select').selectOption('percent');
     await exits.nth(1).locator('input[type="number"]').fill('1');
+    await modal.getByTestId('position-calculate').click();
     await expect(modal.getByTestId('position-calc-single')).toContainText('盈亏比');
     await modal.locator('.modal-foot button').click();
 
@@ -523,6 +526,7 @@ test.describe.serial('Market Sentinel system flow', () => {
     await page.getByTestId('replay-select-1').check();
     await page.getByTestId('replay-calc-selected').click();
     await expect(page.locator('.modal-card').getByText(/批量复利计算/)).toBeVisible();
+    await page.locator('.modal-card').getByTestId('position-calculate').click();
     await expect(page.locator('.modal-card').getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('.modal-card .position-trade-row')).toHaveCount(2);
   });
@@ -537,9 +541,18 @@ test.describe.serial('Market Sentinel system flow', () => {
     const end = await page.getByTestId('replay-custom-end').inputValue();
     await page.getByTestId('replay-custom-start').fill(end);
     await expect(page.getByTestId('replay-custom-period')).toBeVisible();
+    // Keep the job banner alive long enough to verify the elapsed clock ticks.
+    const jobRoute = /\/api\/replay-jobs\//;
+    await page.route(jobRoute, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      await route.continue();
+    });
     await page.getByTestId('run-replay').click();
     await expect(page.getByTestId('replay-job-progress')).toBeVisible({ timeout: 8_000 });
     await expect(page.getByTestId('replay-job-progress')).toContainText('预计约');
+    await page.waitForTimeout(1300);
+    await expect(page.getByTestId('replay-job-progress')).not.toContainText('已用 0 秒');
+    await page.unroute(jobRoute);
     await expect(page.getByTestId('replay-job-progress')).toBeHidden({ timeout: 30_000 });
     await expect(page.getByTestId('replay-result')).toBeVisible();
     await expect(page.locator('.replay-metric-period')).toContainText(end);

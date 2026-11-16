@@ -152,6 +152,7 @@ function simulateTrade(
   endTime: number,
   equityBefore: number,
   optionsSymbol = '',
+  forcedExit?: { at: number; price: number },
 ): PositionTradeResult {
   const direction = config.direction;
   const entryAt = trigger.barCloseTime > 0 ? trigger.barCloseTime : trigger.triggerAt;
@@ -168,8 +169,9 @@ function simulateTrade(
     ? plannedTargetPnl / Math.abs(plannedStopPnl)
     : null;
 
+  const limit = forcedExit ? Math.min(endTime, forcedExit.at) : endTime;
   const future = candles
-    .filter((candle) => candle.openTime >= entryAt && candle.openTime + timeframeMs <= endTime)
+    .filter((candle) => candle.openTime >= entryAt && candle.openTime + timeframeMs <= limit)
     .sort((a, b) => a.openTime - b.openTime);
 
   let rawExit: number | null = null;
@@ -223,15 +225,21 @@ function simulateTrade(
   }
 
   if (rawExit === null) {
-    const last = future[future.length - 1];
-    if (last) {
-      rawExit = last.close;
-      exitAt = last.openTime + timeframeMs;
-      reason = 'end';
+    if (forcedExit) {
+      rawExit = forcedExit.price;
+      exitAt = forcedExit.at;
+      reason = 'next-signal';
     } else {
-      rawExit = trigger.price;
-      exitAt = entryAt;
-      reason = 'no-data';
+      const last = future[future.length - 1];
+      if (last) {
+        rawExit = last.close;
+        exitAt = last.openTime + timeframeMs;
+        reason = 'end';
+      } else {
+        rawExit = trigger.price;
+        exitAt = entryAt;
+        reason = 'no-data';
+      }
     }
   }
 
@@ -306,23 +314,33 @@ export function calculatePositions(options: {
     .sort((a, b) => a.trigger.triggerAt - b.trigger.triggerAt || a.index - b.index);
 
   let equity = config.capital;
-  let lastExitAt = 0;
-  let hasOverlap = false;
+  let forcedCount = 0;
   const trades: PositionTradeResult[] = [];
   const skipped: PositionSkipped[] = [];
   const warnings: string[] = [];
 
-  for (const item of selected) {
+  for (let position = 0; position < selected.length; position++) {
+    const item = selected[position];
     if (equity <= 0) {
       skipped.push({ index: item.index, triggerAt: item.trigger.triggerAt, reason: 'insufficient-equity' });
       continue;
     }
-    if (item.trigger.triggerAt < lastExitAt) hasOverlap = true;
-    const trade = simulateTrade(item.trigger, candles, config, options.timeframeMs, options.endTime, equity, options.symbol);
+    const next = selected[position + 1];
+    const forcedExit = next ? { at: next.trigger.triggerAt, price: next.trigger.price } : undefined;
+    const trade = simulateTrade(
+      item.trigger,
+      candles,
+      config,
+      options.timeframeMs,
+      options.endTime,
+      equity,
+      options.symbol,
+      forcedExit,
+    );
     trade.index = item.index;
     trades.push(trade);
     equity = trade.equityAfter;
-    lastExitAt = Math.max(lastExitAt, trade.exitAt);
+    if (trade.exitReason === 'next-signal') forcedCount++;
     if (trade.exitReason === 'liquidation') warnings.push(`#${item.index + 1} 触发估算强平，收益按保证金上限截断`);
     const levelEpsilon = Math.max(Math.abs(trade.entryPrice), 1) * 1e-9;
     if (trade.stopPrice !== null && (config.direction === 'long'
@@ -333,8 +351,8 @@ export function calculatePositions(options: {
     if (trade.exitReason === 'no-data') warnings.push(`#${item.index + 1} 之后没有可用 K 线，按开仓价退出`);
   }
 
-  if (hasOverlap) {
-    warnings.push('所选信号存在重叠持仓；批量结果按信号顺序逐笔复利理论计算，未模拟同时占用保证金的组合风险。');
+  if (forcedCount > 0) {
+    warnings.push(`${forcedCount} 笔持仓在下一选中信号出现时强制平仓，保证批量复利始终只有一笔仓位；未到止盈/止损的收益按下一信号价格结算。`);
   }
   if (skipped.some((item) => item.reason === 'insufficient-equity')) {
     warnings.push('权益已归零，后续信号不再开仓。');

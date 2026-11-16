@@ -502,7 +502,7 @@ export interface PositionCalculatorConfig {
   stop: PositionExitRule;
 }
 
-export type PositionExitReason = 'target' | 'stop' | 'end' | 'liquidation' | 'no-data';
+export type PositionExitReason = 'target' | 'stop' | 'end' | 'liquidation' | 'no-data' | 'next-signal';
 
 export interface PositionTradeResult {
   index: number;

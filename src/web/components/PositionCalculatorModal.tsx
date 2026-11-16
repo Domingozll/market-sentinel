@@ -49,7 +49,9 @@ function exitLabel(reason: string): string {
         ? '强平'
         : reason === 'no-data'
           ? '无后续K线'
-          : '区间结束';
+          : reason === 'next-signal'
+            ? '下一信号'
+            : '区间结束';
 }
 
 function durationLabel(durationMs: number): string {
@@ -133,6 +135,7 @@ export function PositionCalculatorModal({
   const [config, setConfig] = useState<PositionCalculatorConfig>(DEFAULT_CONFIG);
   const [calculation, setCalculation] = useState<PositionCalculationResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
   const options = useMemo(() => priceSeriesOptions(), []);
@@ -142,36 +145,33 @@ export function PositionCalculatorModal({
     if (!open) return;
     setCalculation(null);
     setError(null);
+    setDirty(false);
   }, [open, selectedIndexes.join(','), replayId]);
 
-  useEffect(() => {
-    if (!open || !replayId || !result || !selectedIndexes.length) return;
-    let active = true;
-    const timer = window.setTimeout(() => {
-      const seq = ++requestRef.current;
-      setLoading(true);
-      setError(null);
-      api.positionCalc(replayId, config, selectedIndexes)
-        .then(({ calculation: next }) => {
-          if (active && seq === requestRef.current) setCalculation(next);
-        })
-        .catch((reason: unknown) => {
-          if (!active || seq !== requestRef.current) return;
-          setCalculation(null);
-          setError(reason instanceof Error ? reason.message : String(reason));
-        })
-        .finally(() => {
-          if (active && seq === requestRef.current) setLoading(false);
-        });
-    }, 280);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [open, replayId, result, selectedIndexes.join(','), config]);
+  async function calculate() {
+    if (!replayId || !result || !selectedIndexes.length) return;
+    const seq = ++requestRef.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const { calculation: next } = await api.positionCalc(replayId, config, selectedIndexes);
+      if (seq !== requestRef.current) return;
+      setCalculation(next);
+      setDirty(false);
+    } catch (reason) {
+      if (seq !== requestRef.current) return;
+      setCalculation(null);
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (seq === requestRef.current) setLoading(false);
+    }
+  }
 
   const updateConfig = (next: Partial<PositionCalculatorConfig>) => {
     setConfig((previous) => ({ ...previous, ...next }));
+    setCalculation(null);
+    setError(null);
+    setDirty(true);
   };
 
   return (
@@ -214,6 +214,22 @@ export function PositionCalculatorModal({
         {options.length === 0 ? (
           <div className="form-hint">当前信号没有可用于止盈/止损的价格类指标；可改用固定价格或固定比例。</div>
         ) : null}
+
+        <div className="position-calc-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            data-testid="position-calculate"
+            onClick={() => void calculate()}
+            disabled={loading || !selectedIndexes.length}
+          >
+            {loading ? <Loader2 size={13} className="spin" /> : <Calculator size={13} />}
+            {loading ? '计算中…' : calculation ? '重新计算' : '开始计算'}
+          </button>
+          <span className="form-hint">
+            {dirty ? '参数已修改，点击开始计算更新结果。' : calculation ? '计算结果基于当前参数。' : '设置本金、方向、杠杆与止盈止损后点击开始计算。'}
+          </span>
+        </div>
 
         {error ? <div className="error-banner" role="alert">{error}</div> : null}
         {loading ? <div className="position-loading"><Loader2 size={13} className="spin" /> 正在按信号周期 K 线计算…</div> : null}
@@ -274,13 +290,13 @@ export function PositionCalculatorModal({
 
               <div className="position-trade-table">
                 <div className="position-trade-head">
-                  <span>信号</span><span>方向/杠杆</span><span>开仓时间</span><span>平仓时间</span>
+                  <span>信号/退出</span><span>方向/杠杆</span><span>开仓时间</span><span>平仓时间</span>
                   <span>开仓价</span><span>平仓价</span><span>数量</span><span>名义</span>
                   <span>手续费</span><span>净盈亏</span><span>收益率</span><span>强平价</span><span>期末权益</span>
                 </div>
                 {calculation.trades.map((trade) => (
                   <div className="position-trade-row" key={`${trade.index}-${trade.triggerAt}`}>
-                    <span>#{trade.index + 1}</span>
+                    <span className="position-signal-cell">#{trade.index + 1}<small>{exitLabel(trade.exitReason)}</small></span>
                     <span>{directionLabel(trade.direction)} {trade.leverage}x</span>
                     <span>{formatDateTime(trade.entryAt)}</span>
                     <span>{formatDateTime(trade.exitAt)}</span>
@@ -288,7 +304,7 @@ export function PositionCalculatorModal({
                     <span>{money(trade.exitPrice)}</span>
                     <span>{formatNumber(trade.quantity, 6)}</span>
                     <span>{money(trade.notional)}</span>
-                    <span>{money(trade.fees)}</span>
+                    <span title={`开仓 ${money(trade.openFee)} / 平仓 ${money(trade.closeFee)}`}>{money(trade.fees)}</span>
                     <span className={trade.netPnl >= 0 ? 'positive' : 'negative'}>{money(trade.netPnl)}</span>
                     <span className={trade.roiPct >= 0 ? 'positive' : 'negative'}>{pct(trade.roiPct)}</span>
                     <span>{money(trade.liquidationPrice)}</span>
@@ -301,10 +317,10 @@ export function PositionCalculatorModal({
             )}
 
             <div className="position-formula">
-              公式：仓位数量 = 本金 × 杠杆 ÷ 开仓价；净收益 = 方向 × (平仓价 − 开仓价) × 数量 − 开仓/平仓双边手续费。开仓与平仓均计入配置滑点；同一根 K 线同时碰到止盈止损按止损优先；跳空按开盘价成交；未设置止盈止损时按回放区间最后一根收盘价估算；估算强平忽略维持保证金与资金费率，手续费按配置单边费率计。批量模式按信号时间顺序对全部选中信号逐笔复利；存在重叠持仓时属于理论顺序收益，不模拟同时占用保证金。
+              公式：仓位数量 = 本金 × 杠杆 ÷ 开仓价；净收益 = 方向 × (平仓价 − 开仓价) × 数量 − 开仓/平仓双边手续费。开仓与平仓均计入配置滑点；同一根 K 线同时碰到止盈止损按止损优先；跳空按开盘价成交；未设置止盈止损时按回放区间最后一根收盘价估算；估算强平忽略维持保证金与资金费率，手续费按配置单边费率计。批量模式按信号时间顺序保持单仓位复利：若下一选中信号早于当前持仓退出，会按下一信号价格强制平仓；未到止盈止损的收益按该价格结算。
             </div>
           </>
-        ) : !loading && !error ? <div className="empty-table">等待计算…</div> : null}
+        ) : !loading && !error ? <div className="empty-table">设置参数后点击“开始计算”。</div> : null}
       </div>
     </Modal>
   );
