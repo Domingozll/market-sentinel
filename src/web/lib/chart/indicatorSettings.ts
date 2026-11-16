@@ -12,12 +12,12 @@ import {
 } from './types';
 
 export const DEFAULT_CHART_INDICATORS: ChartIndicatorConfig = {
-  boll: { enabled: true, length: 20, mult: 2 },
-  volume: { enabled: true, maLength: 20 },
-  kdj: { enabled: false, length: 9, kSmooth: 3, dSmooth: 3 },
-  rsi: { enabled: false, length: 14 },
-  macd: { enabled: false, fast: 12, slow: 26, signal: 9 },
-  ma: { enabled: false, periods: [5, 10, 20, 60] },
+  boll: { enabled: true, visible: true, length: 20, mult: 2 },
+  volume: { enabled: true, visible: true, maLength: 20 },
+  kdj: { enabled: false, visible: true, length: 9, kSmooth: 3, dSmooth: 3 },
+  rsi: { enabled: false, visible: true, length: 14 },
+  macd: { enabled: false, visible: true, fast: 12, slow: 26, signal: 9 },
+  ma: { enabled: false, visible: true, periods: [5, 10, 20, 60] },
 };
 
 export const DEFAULT_VOLUME_PROFILE: VolumeProfileSettings = {
@@ -84,31 +84,37 @@ export function sanitizeIndicators(input: unknown): ChartIndicatorConfig {
   return {
     boll: {
       enabled: bool(boll.enabled, DEFAULT_CHART_INDICATORS.boll.enabled),
+      visible: bool(boll.visible, true),
       length: numberIn(boll.length, DEFAULT_CHART_INDICATORS.boll.length, 2, 200),
       mult: numberIn(boll.mult, DEFAULT_CHART_INDICATORS.boll.mult, 0.1, 10, 0.1),
     },
     volume: {
       enabled: bool(volume.enabled, DEFAULT_CHART_INDICATORS.volume.enabled),
+      visible: bool(volume.visible, true),
       maLength: numberIn(volume.maLength, DEFAULT_CHART_INDICATORS.volume.maLength, 1, 200),
     },
     kdj: {
       enabled: bool(kdj.enabled, DEFAULT_CHART_INDICATORS.kdj.enabled),
+      visible: bool(kdj.visible, true),
       length: numberIn(kdj.length, DEFAULT_CHART_INDICATORS.kdj.length, 2, 200),
       kSmooth: numberIn(kdj.kSmooth, DEFAULT_CHART_INDICATORS.kdj.kSmooth, 1, 20),
       dSmooth: numberIn(kdj.dSmooth, DEFAULT_CHART_INDICATORS.kdj.dSmooth, 1, 20),
     },
     rsi: {
       enabled: bool(rsi.enabled, DEFAULT_CHART_INDICATORS.rsi.enabled),
+      visible: bool(rsi.visible, true),
       length: numberIn(rsi.length, DEFAULT_CHART_INDICATORS.rsi.length, 2, 200),
     },
     macd: {
       enabled: bool(macd.enabled, DEFAULT_CHART_INDICATORS.macd.enabled),
+      visible: bool(macd.visible, true),
       fast,
       slow,
       signal: numberIn(macd.signal, DEFAULT_CHART_INDICATORS.macd.signal, 2, 100),
     },
     ma: {
       enabled: bool(ma.enabled, DEFAULT_CHART_INDICATORS.ma.enabled),
+      visible: bool(ma.visible, true),
       periods: periods(ma.periods, DEFAULT_CHART_INDICATORS.ma.periods),
     },
   };

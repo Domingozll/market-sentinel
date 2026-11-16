@@ -49,6 +49,12 @@ test.describe('Professional chart workspace', () => {
     await expect(page.getByTestId('chart-ohlc-readout')).not.toContainText('O —', { timeout: 20_000 });
     await expect(page.getByTestId('chart-status')).toContainText('实时连接');
     await expect(page.getByTestId('chart-volume-profile-legend')).toContainText('POC');
+    await expect(page.getByTestId('chart-volume-profile-legend')).toContainText('档');
+    await expect(page.getByTestId('chart-vp-state')).toBeVisible();
+    await expect(page.getByTestId('chart-indicator-legend')).toBeVisible();
+    await expect(page.getByTestId('chart-timeframe').getByRole('button')).toHaveCount(24);
+    await expect(page.getByTestId('chart-timeframe').getByRole('button', { name: '6H', exact: true })).toBeVisible();
+    await expect(page.getByTestId('chart-timeframe').getByRole('button', { name: '3Mutc', exact: true })).toBeVisible();
     await expect(page.getByTestId('chart-event-list-toggle')).toBeVisible({ timeout: 10_000 });
     await page.getByTestId('chart-event-list-toggle').click();
     await expect(page.getByTestId('chart-event-list')).toBeVisible();
@@ -76,6 +82,16 @@ test.describe('Professional chart workspace', () => {
       await page.getByTestId(`chart-indicator-${key}`).locator('input[type=checkbox]').check();
     }
     await expect.poll(() => page.locator('canvas').count()).toBeGreaterThan(beforeCanvases);
+    await page.getByTestId('chart-indicator-panel').getByLabel('关闭指标面板').click();
+    await expect(page.getByTestId('chart-legend-rsi')).toContainText('RSI');
+    await expect(page.getByTestId('chart-legend-macd')).toContainText('MACD');
+    await expect(page.getByTestId('chart-legend-rsi')).toContainText('(14)');
+    await page.getByTestId('chart-legend-visible-rsi').click();
+    await expect(page.getByTestId('chart-legend-rsi')).toContainText('已隐藏');
+    await page.getByTestId('chart-legend-visible-rsi').click();
+    await expect(page.getByTestId('chart-legend-rsi')).not.toContainText('已隐藏');
+    await page.getByTestId('chart-legend-rsi').locator('.chart-legend-main').click();
+    await expect(page.getByTestId('chart-indicator-panel')).toBeVisible();
     await page.getByTestId('chart-indicator-panel').getByLabel('关闭指标面板').click();
 
     // Draw a trendline and verify it is persisted for this symbol/timeframe.
@@ -108,6 +124,9 @@ test.describe('Professional chart workspace', () => {
     await page.getByTestId('chart-indicators-button').click();
     await expect(page.getByTestId('chart-indicator-rsi').locator('input[type=checkbox]')).toBeChecked();
     await expect(page.getByTestId('chart-indicator-macd').locator('input[type=checkbox]')).toBeChecked();
+    await page.getByTestId('chart-indicator-panel').getByLabel('关闭指标面板').click();
+    await page.getByTestId('chart-legend-close-kdj').click();
+    await expect(page.getByTestId('chart-legend-kdj')).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('market-sentinel.chart-workspace.v1'))).toContain('segment');
 
     // Volume Profile can be toggled without losing the chart.
@@ -118,6 +137,11 @@ test.describe('Professional chart workspace', () => {
     await page.getByTestId('volume-profile-enabled').check();
     await expect(page.getByTestId('chart-volume-profile-legend')).toBeVisible();
     await page.getByTestId('chart-volume-profile-panel').getByLabel('关闭成交量分布设置').click();
+    await page.getByTestId('chart-vp-toggle').click();
+    await expect(page.getByTestId('chart-volume-profile-legend')).toHaveCount(0);
+    await expect(page.getByTestId('chart-vp-show')).toBeVisible();
+    await page.getByTestId('chart-vp-show').click();
+    await expect(page.getByTestId('chart-volume-profile-legend')).toBeVisible();
     // Symbol search and timeframe are reflected in the URL.
     await page.getByTestId('chart-symbol-search').fill('ETH-USDT-SWAP');
     await page.locator('.chart-symbol-results button').first().click();

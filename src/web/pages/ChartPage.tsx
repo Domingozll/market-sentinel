@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Camera,
   Crosshair,
+  Eye,
+  EyeOff,
   Grip,
   Maximize2,
   Minimize2,
@@ -23,12 +25,15 @@ import { ProChart, type ProChartHandle } from '../components/chart/ProChart';
 import { IndicatorPanel } from '../components/chart/IndicatorPanel';
 import { VolumeProfilePanel } from '../components/chart/VolumeProfilePanel';
 import { ChartEventPopover } from '../components/chart/ChartEventPopover';
+import { IndicatorLegend } from '../components/chart/IndicatorLegend';
 import {
   ALL_CHART_TIMEFRAMES,
   toDrawingKey,
   type ChartEventMarker,
   type ChartIndicatorConfig,
+  type ChartIndicatorKey,
   type DrawingTool,
+  type IndicatorLegendItem,
   type SerializedOverlay,
   type VolumeProfileSettings,
 } from '../lib/chart/types';
@@ -127,6 +132,7 @@ export function ChartPage() {
   const [eventPanelOpen, setEventPanelOpen] = useState(false);
   const [readout, setReadout] = useState({ timestamp: null as number | null, open: null as number | null, high: null as number | null, low: null as number | null, close: null as number | null, volume: null as number | null });
   const [profile, setProfile] = useState<VolumeProfileResult | null>(null);
+  const [legendItems, setLegendItems] = useState<IndicatorLegendItem[]>([]);
   const [chartStatus, setChartStatus] = useState<'connecting' | 'live' | 'polling' | 'offline'>('connecting');
   const [chartError, setChartError] = useState<string | null>(null);
   const [panel, setPanel] = useState<'indicator' | 'volume' | null>(null);
@@ -143,12 +149,15 @@ export function ChartPage() {
   const drawingKey = toDrawingKey(symbol, timeframe);
   const drawings = useMemo(() => workspace.drawings[drawingKey] ?? EMPTY_DRAWINGS, [workspace.drawings, drawingKey]);
   const profileLegend = useMemo(() => {
-    if (!profile || profile.poc === null) return null;
+    if (!workspace.volumeProfile.enabled) return null;
+    if (!profile) return '计算中…';
+    if (profile.totalVolume <= 0) return '当前范围无有效成交量';
+    if (profile.poc === null) return '当前范围无有效成交量';
     const va = profile.valueLow !== null && profile.valueHigh !== null
       ? ` · VA ${formatPrice(profile.valueLow)}–${formatPrice(profile.valueHigh)}`
       : '';
-    return `POC ${formatPrice(profile.poc)}${va}`;
-  }, [profile]);
+    return `POC ${formatPrice(profile.poc)}${va} · ${profile.bins.length} 档`;
+  }, [profile, workspace.volumeProfile.enabled]);
 
   const defaultRuleSymbol = data?.rules.find((rule) => rule.enabled && rule.symbols.length)?.symbols[0];
   useEffect(() => {
@@ -258,6 +267,30 @@ export function ChartPage() {
 
   function updateVolumeProfile(next: VolumeProfileSettings) {
     updateWorkspace({ ...workspaceRef.current, volumeProfile: next });
+  }
+
+  function setIndicatorVisible(key: ChartIndicatorKey, visible: boolean) {
+    const current = workspaceRef.current;
+    updateWorkspace({
+      ...current,
+      indicators: {
+        ...current.indicators,
+        [key]: { ...current.indicators[key], visible },
+      },
+    });
+    setLegendItems((items) => items.map((item) => (item.key === key ? { ...item, visible } : item)));
+  }
+
+  function closeIndicator(key: ChartIndicatorKey) {
+    const current = workspaceRef.current;
+    updateWorkspace({
+      ...current,
+      indicators: {
+        ...current.indicators,
+        [key]: { ...current.indicators[key], enabled: false, visible: false },
+      },
+    });
+    setLegendItems((items) => items.filter((item) => item.key !== key));
   }
 
   function updateDrawings(next: SerializedOverlay[]) {
@@ -397,6 +430,7 @@ export function ChartPage() {
               type="button"
               key={item}
               className={item === timeframe ? 'active' : ''}
+              title={item.endsWith('utc') ? `${item}（UTC+0 开盘）` : `${item}（UTC+8 开盘）`}
               onClick={() => setTimeframe(item)}
             >
               {item}
@@ -496,6 +530,7 @@ export function ChartPage() {
           onDrawingDone={() => setActiveTool(null)}
           onEventSelect={setSelectedEvent}
           onCrosshairChange={setReadout}
+          onIndicatorLegend={setLegendItems}
           onVisibleProfile={setProfile}
           onChartStatus={setChartStatus}
           onError={(error) => {
@@ -504,17 +539,56 @@ export function ChartPage() {
           }}
         />
         <div className="chart-overlay-top">
-          <div className="chart-ohlc-readout" data-testid="chart-ohlc-readout">
-            <span><em>O</em><b>{readout.open === null ? '—' : formatPrice(readout.open)}</b></span>
-            <span><em>H</em><b>{readout.high === null ? '—' : formatPrice(readout.high)}</b></span>
-            <span><em>L</em><b>{readout.low === null ? '—' : formatPrice(readout.low)}</b></span>
-            <span><em>C</em><b className={readout.close !== null && readout.open !== null && readout.close < readout.open ? 'down' : 'up'}>{readout.close === null ? '—' : formatPrice(readout.close)}</b></span>
-            <span><em>VOL</em><b>{readout.volume === null ? '—' : formatCompact(readout.volume)}</b></span>
-            <span className="chart-readout-time">{readoutTime}</span>
+          <div className="chart-overlay-left">
+            <div className="chart-ohlc-readout" data-testid="chart-ohlc-readout">
+              <span><em>O</em><b>{readout.open === null ? '—' : formatPrice(readout.open)}</b></span>
+              <span><em>H</em><b>{readout.high === null ? '—' : formatPrice(readout.high)}</b></span>
+              <span><em>L</em><b>{readout.low === null ? '—' : formatPrice(readout.low)}</b></span>
+              <span><em>C</em><b className={readout.close !== null && readout.open !== null && readout.close < readout.open ? 'down' : 'up'}>{readout.close === null ? '—' : formatPrice(readout.close)}</b></span>
+              <span><em>VOL</em><b>{readout.volume === null ? '—' : formatCompact(readout.volume)}</b></span>
+              <span className="chart-readout-time">{readoutTime}</span>
+            </div>
+            <IndicatorLegend
+              items={legendItems}
+              onEdit={() => setPanel('indicator')}
+              onToggleVisible={(key) => setIndicatorVisible(key, !workspaceRef.current.indicators[key].visible)}
+              onClose={closeIndicator}
+            />
           </div>
-          {workspace.volumeProfile.enabled && profileLegend ? (
-            <div className="chart-profile-legend" data-testid="chart-volume-profile-legend">{profileLegend}</div>
-          ) : null}
+          <div className="chart-vp-wrap" data-testid="chart-vp-state">
+            {workspace.volumeProfile.enabled ? (
+              <div className="chart-profile-legend" data-testid="chart-volume-profile-legend">
+                <button
+                  type="button"
+                  className="chart-vp-main"
+                  onClick={() => setPanel('volume')}
+                  title="打开 Volume Profile 设置"
+                >
+                  VP
+                </button>
+                <span className="chart-vp-value">{profileLegend}</span>
+                <button
+                  type="button"
+                  className="chart-vp-eye"
+                  data-testid="chart-vp-toggle"
+                  aria-label="隐藏 Volume Profile"
+                  title="隐藏 Volume Profile"
+                  onClick={() => updateVolumeProfile({ ...workspace.volumeProfile, enabled: false })}
+                >
+                  <Eye size={11} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="chart-vp-restore"
+                data-testid="chart-vp-show"
+                onClick={() => updateVolumeProfile({ ...workspace.volumeProfile, enabled: true })}
+              >
+                <EyeOff size={11} /> VP 已隐藏
+              </button>
+            )}
+          </div>
         </div>
         {chartError ? (
           <div className="chart-error-toast" role="alert">{chartError}</div>
@@ -532,7 +606,7 @@ export function ChartPage() {
         <span className={`chart-live-dot ${chartStatus}`} />
         <span>{statusLabel(chartStatus)}</span>
         <span>{instrument?.instType ?? 'OKX'} · {symbol}</span>
-        <span>{timeframe} · {data?.settings.timezone ?? 'Asia/Shanghai'}</span>
+        <span>{timeframe} · {timeframe.endsWith('utc') ? 'UTC+0' : (data?.settings.timezone ?? 'Asia/Shanghai')}</span>
         <span className="chart-status-spacer" />
         <span>数据源 OKX 公共行情</span>
         <span>缩放/拖拽查看历史 · 向左拖动加载更多</span>

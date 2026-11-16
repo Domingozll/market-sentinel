@@ -52,7 +52,7 @@ export function IndicatorPanel({
   onClose: () => void;
 }) {
   const setEnabled = (key: ChartIndicatorKey, enabled: boolean) => {
-    onChange({ ...config, [key]: { ...config[key], enabled } });
+    onChange({ ...config, [key]: { ...config[key], enabled, visible: enabled ? true : config[key].visible } });
   };
   return (
     <div className="chart-popover chart-indicator-panel" data-testid="chart-indicator-panel">

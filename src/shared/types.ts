@@ -1,20 +1,47 @@
-export const TIMEFRAMES = ['1m', '3m', '5m', '15m', '30m', '1H', '2H', '4H', '1D'] as const;
+// OKX REST candle bar sizes, plus the UTC variants exposed by the same API.
+export const TIMEFRAMES = [
+  '1m', '3m', '5m', '15m', '30m',
+  '1H', '2H', '4H', '6H', '12H',
+  '1D', '2D', '3D', '1W', '1M', '3M',
+  '6Hutc', '12Hutc', '1Dutc', '2Dutc', '3Dutc', '1Wutc', '1Mutc', '3Mutc',
+] as const;
 export type Timeframe = (typeof TIMEFRAMES)[number];
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
 export const TF_MS: Record<Timeframe, number> = {
-  '1m': 60_000,
-  '3m': 180_000,
-  '5m': 300_000,
-  '15m': 900_000,
-  '30m': 1_800_000,
-  '1H': 3_600_000,
-  '2H': 7_200_000,
-  '4H': 14_400_000,
-  '1D': 86_400_000,
+  '1m': MINUTE_MS,
+  '3m': 3 * MINUTE_MS,
+  '5m': 5 * MINUTE_MS,
+  '15m': 15 * MINUTE_MS,
+  '30m': 30 * MINUTE_MS,
+  '1H': HOUR_MS,
+  '2H': 2 * HOUR_MS,
+  '4H': 4 * HOUR_MS,
+  '6H': 6 * HOUR_MS,
+  '12H': 12 * HOUR_MS,
+  '1D': DAY_MS,
+  '2D': 2 * DAY_MS,
+  '3D': 3 * DAY_MS,
+  '1W': 7 * DAY_MS,
+  '1M': 30 * DAY_MS,
+  '3M': 90 * DAY_MS,
+  '6Hutc': 6 * HOUR_MS,
+  '12Hutc': 12 * HOUR_MS,
+  '1Dutc': DAY_MS,
+  '2Dutc': 2 * DAY_MS,
+  '3Dutc': 3 * DAY_MS,
+  '1Wutc': 7 * DAY_MS,
+  '1Mutc': 30 * DAY_MS,
+  '3Mutc': 90 * DAY_MS,
 };
 
-/** OKX bar codes are the same as our display labels for the supported set. */
+/** OKX bar codes are the same as our display labels. */
 export const TF_TO_OKX_BAR = Object.fromEntries(TIMEFRAMES.map((tf) => [tf, tf])) as Record<Timeframe, string>;
+export const UTC8_ALIGNED_TIMEFRAMES = new Set<Timeframe>([
+  '6H', '12H', '1D', '2D', '3D', '1W', '1M', '3M',
+]);
 
 export const TRIGGER_MODES = ['close', 'intrabar'] as const;
 export type TriggerMode = (typeof TRIGGER_MODES)[number];

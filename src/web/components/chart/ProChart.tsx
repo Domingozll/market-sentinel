@@ -36,10 +36,15 @@ import {
   serializeDrawings,
 } from '../../lib/chart/drawings';
 import { computeVolumeProfile, type VolumeProfileResult } from '../../lib/chart/volumeProfile';
+import { computeIndicatorLegend } from '../../lib/chart/indicatorReadout';
+import type { Timeframe } from '../../../shared/types';
+import { TF_MS } from '../../../shared/types';
 import type {
   ChartEventMarker,
   ChartIndicatorConfig,
+  ChartIndicatorKey,
   DrawingTool,
+  IndicatorLegendItem,
   OhlcvReadout,
   SerializedOverlay,
   VolumeProfileSettings,
@@ -65,6 +70,7 @@ export interface ProChartProps {
   onDrawingDone?: () => void;
   onEventSelect: (event: ChartEventMarker) => void;
   onCrosshairChange: (readout: OhlcvReadout) => void;
+  onIndicatorLegend: (items: IndicatorLegendItem[]) => void;
   onVisibleProfile: (profile: VolumeProfileResult) => void;
   onChartStatus: (status: 'connecting' | 'live' | 'polling' | 'offline') => void;
   onError: (error: unknown) => void;
@@ -99,6 +105,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
   const chartRef = useRef<Chart | null>(null);
   const loaderRef = useRef<ChartDataLoader | null>(null);
   const [ready, setReady] = useState(false);
+  const lastLegendIndexRef = useRef<number | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
   const restoringDrawingsRef = useRef(false);
@@ -131,6 +138,19 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
     }, REFRESH_MS);
   };
 
+  const publishLegend = (chart: Chart, requestedIndex?: number): void => {
+    const data = chart.getDataList();
+    if (!data.length) {
+      propsRef.current.onIndicatorLegend([]);
+      return;
+    }
+    const index = typeof requestedIndex === 'number'
+      ? Math.max(0, Math.min(data.length - 1, requestedIndex))
+      : data.length - 1;
+    lastLegendIndexRef.current = index;
+    propsRef.current.onIndicatorLegend(computeIndicatorLegend(propsRef.current.indicators, data, index));
+  };
+
   // Mount the chart only once.
   useEffect(() => {
     const container = containerRef.current;
@@ -160,6 +180,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
         if (!current) return;
         const last = current.getDataList().at(-1);
         if (last) propsRef.current.onCrosshairChange(toReadout(last));
+        publishLegend(current);
         scheduleRefresh(current);
       },
     });
@@ -179,7 +200,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
       const click = data as { kLineData?: KLineData; dataIndex?: number } | undefined;
       const bar = click?.kLineData ?? (typeof click?.dataIndex === 'number' ? chart.getDataList()[click.dataIndex] : undefined);
       if (!bar) return;
-      const timeframeMs = timeframeToMs(propsRef.current.timeframe);
+      const timeframeMs = TF_MS[propsRef.current.timeframe as Timeframe] ?? 300_000;
       const nearest = propsRef.current.events
         .map((event) => ({ event, distance: Math.abs(event.triggerAt - bar.timestamp) }))
         .filter((item) => item.distance <= timeframeMs * 2)
@@ -197,6 +218,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
         const index = converted[0]?.dataIndex;
         if (typeof index === 'number') {
           bar = chart.getDataList()[index];
+          publishLegend(chart, index);
         }
       }
       propsRef.current.onCrosshairChange(toReadout(bar));
@@ -236,6 +258,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
       onDataChange: () => {
         const last = chart.getDataList().at(-1);
         if (last) propsRef.current.onCrosshairChange(toReadout(last));
+        publishLegend(chart);
         scheduleRefresh(chart);
       },
     });
@@ -255,38 +278,38 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
       if (indicator.name.startsWith('MS_')) chart.removeIndicator({ id: indicator.id });
     }
     const cfg = props.indicators;
-    if (cfg.volume.enabled) {
+    if (cfg.volume.enabled && cfg.volume.visible) {
       chart.createIndicator({
         name: INDICATOR_NAMES.volume,
         calcParams: [cfg.volume.maLength],
       });
     }
-    if (cfg.kdj.enabled) {
+    if (cfg.kdj.enabled && cfg.kdj.visible) {
       chart.createIndicator({
         name: INDICATOR_NAMES.kdj,
         calcParams: [cfg.kdj.length, cfg.kdj.kSmooth, cfg.kdj.dSmooth],
       });
     }
-    if (cfg.rsi.enabled) {
+    if (cfg.rsi.enabled && cfg.rsi.visible) {
       chart.createIndicator({
         name: INDICATOR_NAMES.rsi,
         calcParams: [cfg.rsi.length],
       });
     }
-    if (cfg.macd.enabled) {
+    if (cfg.macd.enabled && cfg.macd.visible) {
       chart.createIndicator({
         name: INDICATOR_NAMES.macd,
         calcParams: [cfg.macd.fast, cfg.macd.slow, cfg.macd.signal],
       });
     }
-    if (cfg.boll.enabled) {
+    if (cfg.boll.enabled && cfg.boll.visible) {
       chart.createIndicator({
         name: INDICATOR_NAMES.boll,
         calcParams: [cfg.boll.length, cfg.boll.mult],
         paneId: 'candle_pane',
       }, true);
     }
-    if (cfg.ma.enabled) {
+    if (cfg.ma.enabled && cfg.ma.visible) {
       const periods = [...cfg.ma.periods, 5, 10, 20, 60].slice(0, 4);
       chart.createIndicator({
         name: INDICATOR_NAMES.ma,
@@ -294,6 +317,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
         paneId: 'candle_pane',
       }, true);
     }
+    publishLegend(chart, lastLegendIndexRef.current ?? undefined);
   }, [ready, props.indicators]);
 
   // Volume Profile overlay lifecycle.
@@ -407,14 +431,24 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
   return <div ref={containerRef} className="chart-canvas" data-testid="chart-container" />;
 });
 
-function timeframeToMs(timeframe: string): number {
-  if (timeframe === '1D') return 86_400_000;
-  if (timeframe.endsWith('H')) return (Number(timeframe.slice(0, -1)) || 1) * 3_600_000;
-  return (Number(timeframe.replace('m', '')) || 5) * 60_000;
-}
-
-export function toKLinePeriod(timeframe: string): { span: number; type: 'minute' | 'hour' | 'day' } {
-  if (timeframe === '1D') return { span: 1, type: 'day' };
-  if (timeframe.endsWith('H')) return { span: Number(timeframe.slice(0, -1)) || 1, type: 'hour' };
-  return { span: Number(timeframe.replace('m', '')) || 5, type: 'minute' };
+export function toKLinePeriod(timeframe: string): {
+  span: number;
+  type: 'minute' | 'hour' | 'day' | 'week' | 'month';
+} {
+  const match = /^(\d+)([mHDWM])(utc)?$/.exec(timeframe);
+  if (!match) return { span: 5, type: 'minute' };
+  const span = Number(match[1]) || 1;
+  switch (match[2]) {
+    case 'm':
+      return { span, type: 'minute' };
+    case 'H':
+      return { span, type: 'hour' };
+    case 'D':
+      return { span, type: 'day' };
+    case 'W':
+      return { span, type: 'week' };
+    case 'M':
+    default:
+      return { span, type: 'month' };
+  }
 }

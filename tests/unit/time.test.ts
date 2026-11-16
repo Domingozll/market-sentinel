@@ -5,7 +5,7 @@ import {
   hasContinuousCandles,
   isLatestClosedBarFresh,
 } from '../../src/server/market/time';
-import { TF_MS } from '../../src/shared/types';
+import { TF_MS, TIMEFRAMES } from '../../src/shared/types';
 import { makeCandles } from '../helpers/fake-market';
 
 const at = (iso: string) => Date.parse(iso);
@@ -22,6 +22,23 @@ describe('exchange boundaries', () => {
     const now = at('2026-11-09T10:20:10+08:00');
     expect(expectedLatestClosedOpen(now, '1D')).toBe(at('2026-11-08T00:00:00+08:00'));
     expect(expectedCurrentBarOpen(now, '1D')).toBe(at('2026-11-09T00:00:00+08:00'));
+  });
+
+  it('supports the full OKX period set including UTC+8 and UTC boundaries', () => {
+    const now = at('2026-11-09T10:20:10+08:00');
+    expect(expectedCurrentBarOpen(now, '6H')).toBe(at('2026-11-09T06:00:00+08:00'));
+    expect(expectedLatestClosedOpen(now, '6H')).toBe(at('2026-11-09T00:00:00+08:00'));
+    expect(expectedCurrentBarOpen(now, '12H')).toBe(at('2026-11-09T00:00:00+08:00'));
+    expect(expectedCurrentBarOpen(now, '1W')).toBe(at('2026-11-09T00:00:00+08:00'));
+    expect(expectedLatestClosedOpen(now, '1W')).toBe(at('2026-11-02T00:00:00+08:00'));
+    expect(expectedCurrentBarOpen(now, '1M')).toBe(at('2026-11-01T00:00:00+08:00'));
+    expect(expectedLatestClosedOpen(now, '1M')).toBe(at('2026-10-01T00:00:00+08:00'));
+    expect(expectedCurrentBarOpen(now, '3M')).toBe(at('2026-10-01T00:00:00+08:00'));
+    expect(expectedLatestClosedOpen(now, '3M')).toBe(at('2026-07-01T00:00:00+08:00'));
+    expect(expectedCurrentBarOpen(now, '1Dutc')).toBe(at('2026-11-09T00:00:00Z'));
+    expect(expectedLatestClosedOpen(now, '1Dutc')).toBe(at('2026-11-08T00:00:00Z'));
+    expect(expectedCurrentBarOpen(now, '1Mutc')).toBe(at('2026-11-01T00:00:00Z'));
+    expect(TIMEFRAMES).toEqual(expect.arrayContaining(['6H', '12H', '2D', '3D', '1W', '1M', '3M', '6Hutc', '12Hutc', '1Dutc', '2Dutc', '3Dutc', '1Wutc', '1Mutc', '3Mutc']));
   });
 
   it('allows a small grace window after close', () => {

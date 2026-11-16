@@ -831,7 +831,22 @@ export class Store {
       '1H': 365,
       '2H': 365,
       '4H': 365,
+      '6H': 365,
+      '12H': 365,
       '1D': 730,
+      '2D': 730,
+      '3D': 730,
+      '1W': 730,
+      '1M': 730,
+      '3M': 730,
+      '6Hutc': 365,
+      '12Hutc': 365,
+      '1Dutc': 730,
+      '2Dutc': 730,
+      '3Dutc': 730,
+      '1Wutc': 730,
+      '1Mutc': 730,
+      '3Mutc': 730,
     };
     for (const [timeframe, days] of Object.entries(retentionDays) as [Timeframe, number][]) {
       this.db.prepare('DELETE FROM candles WHERE timeframe=? AND open_ts < ?').run(

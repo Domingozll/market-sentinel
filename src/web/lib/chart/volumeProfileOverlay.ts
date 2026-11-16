@@ -36,7 +36,7 @@ function createFigures(chart: Chart, state: VolumeProfileOverlayState): OverlayF
   if (!profile.bins.length || !(profile.maxVolume > 0)) return [];
   const size = chart.getSize('candle_pane');
   if (!size) return [];
-  const width = Math.min(95, Math.max(16, size.width * 0.18));
+  const width = Math.min(190, Math.max(48, size.width * 0.26));
   const right = size.width - 3;
   const figures: OverlayFigure[] = [];
   for (const bin of profile.bins) {
@@ -49,7 +49,7 @@ function createFigures(chart: Chart, state: VolumeProfileOverlayState): OverlayF
     figures.push({
       type: 'rect',
       attrs: { x: right - barWidth, y, width: barWidth, height: Math.max(1, height - 1) },
-      styles: { style: 'fill', color: 'rgba(49,215,194,.24)' },
+      styles: { style: 'fill', color: 'rgba(49,215,194,.58)' },
       ignoreEvent: true,
     });
   }

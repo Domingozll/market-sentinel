@@ -1,4 +1,4 @@
-import type { Timeframe } from '../../../shared/types';
+import { TIMEFRAMES, type Timeframe } from '../../../shared/types';
 
 export const CHART_WORKSPACE_STORAGE_KEY = 'market-sentinel.chart-workspace.v1';
 export const LEGACY_CHART_INDICATOR_KEY = 'market-sentinel.chart-indicators.v1';
@@ -9,31 +9,37 @@ export type ChartIndicatorKey = 'boll' | 'volume' | 'kdj' | 'rsi' | 'macd' | 'ma
 
 export interface BollIndicatorConfig {
   enabled: boolean;
+  visible: boolean;
   length: number;
   mult: number;
 }
 export interface VolumeIndicatorConfig {
   enabled: boolean;
+  visible: boolean;
   maLength: number;
 }
 export interface KdjIndicatorConfig {
   enabled: boolean;
+  visible: boolean;
   length: number;
   kSmooth: number;
   dSmooth: number;
 }
 export interface RsiIndicatorConfig {
   enabled: boolean;
+  visible: boolean;
   length: number;
 }
 export interface MacdIndicatorConfig {
   enabled: boolean;
+  visible: boolean;
   fast: number;
   slow: number;
   signal: number;
 }
 export interface MaIndicatorConfig {
   enabled: boolean;
+  visible: boolean;
   periods: number[];
 }
 
@@ -92,6 +98,19 @@ export interface PriceLevelSeries {
   updatedAt: number;
 }
 
+export interface IndicatorLegendValue {
+  label: string;
+  value: number | null;
+}
+
+export interface IndicatorLegendItem {
+  key: ChartIndicatorKey;
+  name: string;
+  params: string;
+  values: IndicatorLegendValue[];
+  visible: boolean;
+}
+
 export interface ChartEventMarker {
   id: string;
   ruleId: string | null;
@@ -113,19 +132,11 @@ export interface OhlcvReadout {
   volume: number | null;
 }
 
-export const CHART_TIMEFRAME_LABEL: Record<Timeframe, string> = {
-  '1m': '1m',
-  '3m': '3m',
-  '5m': '5m',
-  '15m': '15m',
-  '30m': '30m',
-  '1H': '1H',
-  '2H': '2H',
-  '4H': '4H',
-  '1D': '1D',
-};
+export const CHART_TIMEFRAME_LABEL = Object.fromEntries(
+  TIMEFRAMES.map((timeframe) => [timeframe, timeframe]),
+) as Record<Timeframe, string>;
 
-export const ALL_CHART_TIMEFRAMES: Timeframe[] = ['1m', '3m', '5m', '15m', '30m', '1H', '2H', '4H', '1D'];
+export const ALL_CHART_TIMEFRAMES: Timeframe[] = [...TIMEFRAMES];
 
 export function toDrawingKey(symbol: string, timeframe: string): string {
   return `${symbol}|${timeframe}`;

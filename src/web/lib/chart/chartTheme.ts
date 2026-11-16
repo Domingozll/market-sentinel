@@ -58,7 +58,7 @@ export const chartStyles: DeepPartial<Styles> = {
       { color: '#efb45d', size: 1 },
     ],
     bars: [{ upColor: CHART_COLORS.volumeUp, downColor: CHART_COLORS.volumeDown }],
-    tooltip: { showRule: 'none', title: { color: CHART_COLORS.muted }, legend: { color: CHART_COLORS.text } },
+    tooltip: { showRule: 'always', title: { color: CHART_COLORS.muted }, legend: { color: CHART_COLORS.text } },
   },
   xAxis: {
     axisLine: { color: CHART_COLORS.border },

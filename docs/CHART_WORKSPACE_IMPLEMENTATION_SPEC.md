@@ -13,7 +13,7 @@
 2. **不要接入真实链上清算数据。** v1.0 只做从 K 线派生的 Volume Profile；订单簿、OKX 强平和链上数据是 v1.1 的 Provider 扩展。
 3. **先完成阶段 0 Spike。** 必须证明 KLineChart 10.1.0 能在当前 React 19 + Vite 8 + TypeScript 7 环境运行，并能用自定义 overlay 画出 Volume Profile，再进入全量开发。
 4. **KLineChart v10 与 v9 API 不兼容。** 锁定 `klinecharts@10.1.0`；不要使用 `applyNewData` / `updateData` 等 v9 方法。
-5. **不能破坏现有 113 个单元/集成测试和 9 个 E2E。** 新增功能放在独立路由和独立文件中，旧图表行为保持不变。
+5. **不能破坏现有 116 个单元/集成测试和 9 个 E2E。** 新增功能放在独立路由和独立文件中，旧图表行为保持不变。
 6. **所有指标公式以服务端共享公式为准。** 不允许图表自己复制一份 RSI/KDJ/MACD 算法。
 7. **不要修改用户数据/规则/投递/通知逻辑。** 本功能只新增行情图表读取和前端展示能力，除非为实现分页/SSE 做必要的只读查询。
 
@@ -92,7 +92,7 @@
 6. 趋势线/水平线/Fibonacci 可画、可删、刷新后恢复。
 7. Volume Profile 显示 POC/VAH/VAL，缩放后 500ms 内更新。
 8. 触发标记可点击查看事件信息。
-9. 现有 113 个单元/集成测试和 9 个 E2E 全部通过。
+9. 现有 116 个单元/集成测试和 9 个 E2E 全部通过。
 10. `npm run typecheck`、`npm run build`、`npm audit` 通过；无 console error。
 
 ## 4. 信息架构与路由
@@ -162,7 +162,7 @@
 顶部工具：
 
 - 品种搜索（可输入 + 下拉；复用 `/api/instruments?query=`）
-- 周期：`1m / 3m / 5m / 15m / 30m / 1H / 2H / 4H / 1D`
+- 周期：OKX REST 全量 `1m / 3m / 5m / 15m / 30m / 1H / 2H / 4H / 6H / 12H / 1D / 2D / 3D / 1W / 1M / 3M`，以及 UTC+0 变体 `6Hutc / 12Hutc / 1Dutc / 2Dutc / 3Dutc / 1Wutc / 1Mutc / 3Mutc`
 - 指标管理 drawer
 - 画线工具组
 - Volume Profile 开关
@@ -1118,7 +1118,7 @@ v1.1 候选：
 - [ ] 无新增 console error/page error。
 - [ ] 旧总览、试跑、规则、事件、通知、设置全部不回归。
 - [ ] 所有新代码通过 typecheck，新增测试全部通过。
-- [ ] 113 个单元/集成测试 + 9 个 E2E 全部通过。
+- [x] 116 个单元/集成测试 + 9 个 E2E 全部通过。
 - [ ] 生产构建通过，KLineChart 页面 lazy chunk 生效。
 - [ ] Docker 镜像重建后 `/chart` 可用，旧数据保留。
 - [ ] 文档/截图/变更日志更新。

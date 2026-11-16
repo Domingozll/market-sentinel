@@ -273,9 +273,12 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 ```text
 /api/candles?instId=BTC-USDT-SWAP&timeframe=5m&limit=500
-/api/candles?instId=BTC-USDT-SWAP&timeframe=5m&limit=500&before=1763000000000
+/api/candles?instId=BTC-USDT-SWAP&timeframe=1Mutc&limit=500
+/api/candles?instId=BTC-USDT-SWAP&timeframe=5m&limit=500
+/api/candles?instId=BTC-USDT-SWAP&timeframe=1Mutc&limit=500&before=1763000000000
 ```
 
+- `timeframe` 支持 OKX 全部周期：`1m/3m/5m/15m/30m/1H/2H/4H/6H/12H/1D/2D/3D/1W/1M/3M`，以及 `6Hutc/12Hutc/1Dutc/2Dutc/3Dutc/1Wutc/1Mutc/3Mutc`。
 - `limit` 20–1,000，默认 200；专业图表使用 500。
 - 不传 `before`：返回最新一页，合并 SQLite 已收盘 K 线和当前未收盘 K 线。
 - 传 `before`：只返回 `openTime < before` 的已收盘 K 线，用于向左分页。

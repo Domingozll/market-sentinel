@@ -25,16 +25,16 @@
 | 测试层 | 结果 |
 |---|---|
 | TypeScript 类型检查 | 通过 |
-| 单元 + 集成测试 | **22 个测试文件，113 个测试全部通过**（~2s 测试耗时） |
-| 浏览器 E2E | **9 个场景全部通过**（~16s） |
-| 构建 | 通过（Vite + esbuild；服务端 174.3 KB，主前端 1.52 MB / 493 KB gzip，图表懒加载 chunk 269 KB / 71.7 KB gzip） |
+| 单元 + 集成测试 | **23 个测试文件，116 个测试全部通过**（~2s 测试耗时） |
+| 浏览器 E2E | **9 个场景全部通过**（~14s） |
+| 构建 | 通过（Vite + esbuild；服务端 181 KB，主前端 1.52 MB / 489 KB gzip，图表懒加载 chunk 277 KB / 73 KB gzip） |
 | 依赖安全审计 | `npm audit`、`npm audit --omit=dev` 均为 **0 vulnerabilities** |
 | Docker 镜像 | `market-sentinel:1.0.0`，约 266 MB |
 | 容器健康 | `healthy` |
 | 容器运行用户 | 应用进程 UID/GID 1000 (`node`)，入口仅以 root 执行目录授权后降权 |
 | 数据持久化 | 重启 / 重建容器后规则和状态保留；旧 `deliveries` 表自动新增渠道列，历史投递保留为 Discord |
-| 真实 OKX 验收 | 临时真实实例与 Docker 容器均验证：专业图表真实 500 根、SSE、Volume Profile、全屏通过；容器保留现有 K 线与事件数据 |
-| 大数据外部盘验收 | 20,000 根 K 线写入 `/Volumes/Leo`，查询 1,000 根 1.7ms，5,000 根 Volume Profile 0.7ms |
+| 真实 OKX 验收 | 临时真实实例验证 6H/12H/1W/1M/1Dutc/3Mutc 等新周期；Docker 容器验证 24 个周期入口、真实 5m 数据、指标 pane 值/图例、VP 80 档、SSE、全屏；容器保留现有 K 线与事件数据 |
+| 大数据外部盘验收 | 20,000 根 K 线写入 `/Volumes/Leo`，查询 1,000 根 1.4ms，5,000 根 Volume Profile 0.5ms |
 | 最终数据状态 | 验收使用独立临时数据；用户本地 data/ 不进入仓库 |
 
 ### 部署地址
@@ -50,7 +50,7 @@ http://127.0.0.1:8787
 | 文件 | 测试数 | 覆盖内容 |
 |---|---:|---|
 | `tests/unit/indicators.test.ts` | 14 | SMA/EMA、布林带总体标准差、KDJ 9/3/3、RSI Wilder、MACD、成交量倍数、比较符 |
-| `tests/unit/time.test.ts` | 4 | 交易所周期边界、1D UTC+8 日界、收盘宽限、K 线连续性 |
+| `tests/unit/time.test.ts` | 5 | OKX 全部周期边界（6H/12H/周/月/UTC 变体）、收盘宽限、K 线连续性 |
 | `tests/unit/rules.test.ts` | 10 | 规则 schema、参数校验、嵌套、单位警告、摘要、多周期表达式、盘中形成 K 线 |
 | `tests/unit/engine.test.ts` | 7 | 边沿触发、基线、冷却、重复推送幂等、盘中路标/收盘确认、重连重建基线 |
 | `tests/unit/engine-extra.test.ts` | 4 | 多品种独立状态、重启去重、盘中收盘确认、迟到信号压制 |
@@ -60,6 +60,7 @@ http://127.0.0.1:8787
 | `tests/unit/rule-builder.test.tsx` | 2 | 条件构建器交互、AND/OR、添加/删除、条件数量上限 |
 | `tests/unit/chart-indicators.test.ts` | 5 | 图表指标默认值、范围钳制、MACD 关系、图例标签、localStorage 持久化 |
 | `tests/unit/chart-indicator-panel.test.tsx` | 2 | 指标面板开关、参数编辑、恢复默认、Escape 关闭 |
+| `tests/unit/indicator-readout.test.ts` | 2 | 指标名称/参数/当前值图例、隐藏指标、空数据 |
 | `tests/unit/volume-profile.test.ts` | 5 | Volume Profile/POC/VA、K 线归一化、图表配置迁移与持久化 |
 | `tests/integration/chart-api.test.ts` | 3 | K 线 before 分页、非法参数、SSE 首帧与响应头 |
 | `tests/integration/pushplus.test.ts` | 7 | PushPlus payload、固定端点、成功/429/5xx/业务错误、Token 脱敏、渠道投递全链路 |
@@ -81,8 +82,8 @@ http://127.0.0.1:8787
 5. 行情图指标面板：打开面板 → 启用/配置 KDJ 与 RSI → 关闭并刷新 → 设置持久化 → 点击图例隐藏成交量 → 从面板重新启用。
 6. PushPlus：设置页选择微信 PushPlus → 填写 Token/topic → 保存 → 发送测试消息 → 规则编辑器显示 PushPlus 文本预览并发送测试；Token 掩码、当前渠道和 mock 请求均已验证。
 7. 移动端布局：390px 下底部导航、图表指标底部面板、规则卡片、事件摘要与全屏抽屉、设置页和规则编辑器均无横向溢出；768px 与 1024px 断点也通过。
-8. 专业图表：KLineChart 加载、实时最后一根、事件列表/浮层、指标（RSI/KDJ/MACD/MA）、Volume Profile、画线持久化、品种/周期 URL、全屏。
-9. 手机专业图表：390px 无横向溢出；原生全屏不可用时 CSS 全屏覆盖整个视口。
+8. 专业图表：OKX 24 个周期入口、KLineChart 加载、实时最后一根、事件列表/浮层、指标 pane 名称/参数/当前值、主图图例编辑/隐藏/关闭、Volume Profile 计算状态/80 档/显隐、画线持久化、品种/周期 URL、全屏。
+9. 手机专业图表：390px 下 24 周期/指标图例可滚动且无页面横向溢出；原生全屏不可用时 CSS 全屏覆盖整个视口。
 
 E2E 同时检查浏览器 console error 与 page error，最终为 0。
 
