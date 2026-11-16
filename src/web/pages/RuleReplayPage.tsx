@@ -59,6 +59,7 @@ export function RuleReplayPage() {
   const [replays, setReplays] = useState<ReplaySummary[]>([]);
   const [selectedReplayId, setSelectedReplayId] = useState('');
   const [savedMeta, setSavedMeta] = useState<{ createdAt: number; ruleVersion: number } | null>(null);
+  const [ruleUpdated, setRuleUpdated] = useState(false);
   const requestSeq = useRef(0);
 
   function candlesFromResult(next: TrialResult): Candle[] {
@@ -108,6 +109,14 @@ export function RuleReplayPage() {
         chartTimeframe: targetChartTimeframe,
       });
       if (seq !== requestSeq.current) return;
+      if (replay.ruleVersion !== targetRule.version) {
+        try {
+          const { rule: latestRule } = await api.rule(targetRule.id);
+          if (seq === requestSeq.current) setRule(latestRule);
+        } catch {
+          // The replay itself is still valid; the next page load will refresh rule state.
+        }
+      }
       applyReplay(replay);
       setReplays((previous) => [
         replay,
@@ -156,6 +165,7 @@ export function RuleReplayPage() {
     setReplays([]);
     setSelectedReplayId('');
     setSavedMeta(null);
+    setRuleUpdated(false);
     setSymbol('');
     setChartTimeframe('5m');
     api.rule(id)
@@ -171,14 +181,27 @@ export function RuleReplayPage() {
           const { replays: saved } = await api.replays(id, 20);
           if (!active) return;
           setReplays(saved);
-          if (saved.length) {
-            const { replay } = await api.replay(saved[0].id);
+          const currentVersion = saved.find((item) => item.ruleVersion === loaded.version);
+          if (currentVersion) {
+            // A result for the current rule version exists: safe to reuse it.
+            const { replay } = await api.replay(currentVersion.id);
             if (!active) return;
             applyReplay(replay);
             setLoadingRule(false);
           } else {
+            // Results exist only for older rule versions. Never present a stale
+            // snapshot as the current replay; reuse its parameters and run the
+            // new rule version once, then keep the old record in history.
+            const base = saved[0];
+            const fallbackSymbol = base && loaded.symbols.includes(base.symbol) ? base.symbol : firstSymbol;
+            const fallbackWindow = base?.windowDays ?? 7;
+            const fallbackChart = base?.chartTimeframe ?? initialChart;
+            if (base) setRuleUpdated(true);
+            setSymbol(fallbackSymbol);
+            setWindowDays(fallbackWindow);
+            setChartTimeframe(fallbackChart);
             setLoadingRule(false);
-            if (firstSymbol) await runReplay(loaded, firstSymbol, 7, initialChart);
+            if (fallbackSymbol) await runReplay(loaded, fallbackSymbol, fallbackWindow, fallbackChart);
           }
         } catch (error) {
           if (!active) return;
@@ -362,7 +385,7 @@ export function RuleReplayPage() {
                 <option value="">{replays.length ? '选择历史结果…' : '暂无已保存结果'}</option>
                 {replays.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {formatDateTime(item.createdAt)} · {item.symbol} · {item.windowDays}天 · {item.chartTimeframe} · {item.triggerCount}次
+                    {formatDateTime(item.createdAt)} · {item.symbol} · {item.windowDays}天 · {item.chartTimeframe} · {item.triggerCount}次 · v{item.ruleVersion}
                   </option>
                 ))}
               </select>
@@ -381,6 +404,12 @@ export function RuleReplayPage() {
           </div>
         </div>
       </section>
+
+      {ruleUpdated ? (
+        <div className="replay-updated-banner" data-testid="replay-rule-updated">
+          检测到规则已更新。已按当前规则版本自动生成新的回放结果；旧版本结果仍保留在“已保存回放”中。
+        </div>
+      ) : null}
 
       {runError ? <ErrorBanner message={runError} onRetry={runCurrent} /> : null}
 

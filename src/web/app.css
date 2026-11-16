@@ -511,3 +511,5 @@ h1,h2,h3,p{margin-top:0}
   .replay-signal-tooltip{width:248px;padding:8px 9px}
   .rst-foot{display:none}
 }
+
+.replay-updated-banner{margin:0 0 11px;padding:8px 11px;border:1px solid rgba(239,180,93,.3);border-radius:6px;background:rgba(239,180,93,.055);color:#d7bd8c;font-family:var(--mono);font-size:8.5px;line-height:1.6}

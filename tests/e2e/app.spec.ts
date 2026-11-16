@@ -155,6 +155,68 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByTestId('replay-chart').locator('canvas').first()).toBeVisible();
   });
 
+  test('rule edits invalidate the replay cache and run the new version', async ({ page, request }) => {
+    const expression = {
+      kind: 'group',
+      op: 'AND',
+      children: [{
+        kind: 'condition',
+        id: 'cache-v1',
+        timeframe: '5m',
+        left: { series: 'price.close' },
+        cmp: 'gte',
+        right: { type: 'number', value: 0 },
+      }],
+    };
+    const created = await request.post('/api/rules', {
+      data: {
+        name: '缓存版本回放 v1',
+        symbols: ['BTC-USDT-SWAP'],
+        triggerMode: 'close',
+        cooldownSec: 0,
+        enabled: true,
+        expression,
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+    const ruleId = (await created.json()).rule.id as string;
+    let replayRuns = 0;
+    page.on('request', (req) => {
+      if (req.method() === 'POST' && /\/replays$/.test(new URL(req.url()).pathname)) replayRuns++;
+    });
+
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    const rowV1 = page.locator('.rule-list-grid').filter({ hasText: '缓存版本回放 v1' }).first();
+    await rowV1.getByTestId('rule-history').click();
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('replay-rule-updated')).toHaveCount(0);
+    const runsBeforeEdit = replayRuns;
+
+    const updated = await request.put(`/api/rules/${ruleId}`, {
+      data: {
+        name: '缓存版本回放 v2',
+        symbols: ['BTC-USDT-SWAP'],
+        triggerMode: 'close',
+        cooldownSec: 3600,
+        enabled: true,
+        expression: {
+          ...expression,
+          children: [{ ...expression.children[0], id: 'cache-v2', cmp: 'lt', right: { type: 'number', value: 0 } }],
+        },
+      },
+    });
+    expect(updated.ok()).toBeTruthy();
+
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    const rowV2 = page.locator('.rule-list-grid').filter({ hasText: '缓存版本回放 v2' }).first();
+    await rowV2.getByTestId('rule-history').click();
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('replay-rule-updated')).toBeVisible();
+    await expect(page.locator('.replay-history-meta')).toContainText('规则 v2');
+    await expect(page.getByTestId('replay-history').locator('option')).toHaveCount(3);
+    expect(replayRuns).toBe(runsBeforeEdit + 1);
+  });
+
   test('chart indicators can be enabled, configured, hidden and persisted', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('market-chart')).toBeVisible();

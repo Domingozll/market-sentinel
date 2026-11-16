@@ -145,6 +145,68 @@ describe('saved rule historical replay', () => {
     expect(badTimeframe.statusCode).toBe(400);
   });
 
+  it('creates a fresh replay after the rule version changes and keeps the old snapshot', async () => {
+    runtime = await buildTestRuntime({ market: preparedMarket() });
+    const created = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: '/api/rules',
+      payload: { ...draft, name: '版本回放 v1', enabled: true },
+    });
+    const id = created.body.rule.id as string;
+    const first = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/rules/${id}/replays`,
+      payload: { symbol, windowDays: 1, chartTimeframe: '5m' },
+    });
+    expect(first.statusCode).toBe(201);
+    expect(first.body.replay.ruleVersion).toBe(1);
+    expect(first.body.replay.result.triggerCount).toBeGreaterThan(0);
+
+    const updated = await jsonRequest(runtime.runtime, {
+      method: 'PUT',
+      url: `/api/rules/${id}`,
+      payload: {
+        ...draft,
+        name: '版本回放 v2',
+        cooldownSec: 3600,
+        enabled: true,
+        expression: {
+          kind: 'group',
+          op: 'AND',
+          children: [{
+            kind: 'condition',
+            id: 'never',
+            timeframe: '5m',
+            left: { series: 'price.close' },
+            cmp: 'gte',
+            right: { type: 'number', value: 999_999 },
+          }],
+        },
+      },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.body.rule.version).toBe(2);
+
+    const second = await jsonRequest(runtime.runtime, {
+      method: 'POST',
+      url: `/api/rules/${id}/replays`,
+      payload: { symbol, windowDays: 1, chartTimeframe: '5m' },
+    });
+    expect(second.statusCode).toBe(201);
+    expect(second.body.replay.ruleVersion).toBe(2);
+    expect(second.body.replay.result.triggerCount).toBe(0);
+
+    const list = await jsonRequest(runtime.runtime, { method: 'GET', url: `/api/rules/${id}/replays` });
+    expect(list.body.replays).toHaveLength(2);
+    expect(list.body.replays[0].ruleVersion).toBe(2);
+    expect(list.body.replays[1].ruleVersion).toBe(1);
+
+    const old = await jsonRequest(runtime.runtime, { method: 'GET', url: `/api/replays/${first.body.replay.id}` });
+    expect(old.statusCode).toBe(200);
+    expect(old.body.replay.ruleVersion).toBe(1);
+    expect(old.body.replay.result.triggerCount).toBeGreaterThan(0);
+  });
+
   it('rejects invalid symbols/windows and unknown rules', async () => {
     runtime = await buildTestRuntime({ market: preparedMarket() });
     const created = await jsonRequest(runtime.runtime, {
