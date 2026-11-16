@@ -382,20 +382,27 @@ export interface DiagnosticInfo {
   recentErrors: { at: number; message: string }[];
 }
 
+export interface TrialTrigger {
+  triggerAt: number;
+  barOpenTime: number;
+  barCloseTime: number;
+  price: number;
+  triggerMode: TriggerMode;
+  conditions: ConditionEvaluation[];
+  truth: boolean;
+  alreadyMatched: boolean;
+  markerType: 'trigger';
+}
+
 export interface TrialResult {
   triggerCount: number;
   perDay: number;
   windowDays: number;
   symbol: string;
   timeframe: Timeframe;
-  triggers: {
-    triggerAt: number;
-    price: number;
-    conditions: ConditionEvaluation[];
-    truth: boolean;
-    alreadyMatched: boolean;
-    markerType: 'trigger';
-  }[];
+  triggers: TrialTrigger[];
+  /** True when the run produced more than the 500 stored trigger snapshots. */
+  triggersTruncated: boolean;
   candles: { openTime: number; open: number; high: number; low: number; close: number; volume: number }[];
   indicators: { upper: (number | null)[]; middle: (number | null)[]; lower: (number | null)[] };
   warning: string;

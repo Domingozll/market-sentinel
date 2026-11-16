@@ -16,6 +16,7 @@ import { useAppData } from './context';
 import { DashboardPage } from './pages/DashboardPage';
 import { RulesPage } from './pages/RulesPage';
 import { RuleEditorPage } from './pages/RuleEditorPage';
+import { RuleReplayPage } from './pages/RuleReplayPage';
 import { EventsPage } from './pages/EventsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -34,6 +35,7 @@ function pageTitle(pathname: string): string {
   if (pathname === '/rules') return '规则';
   if (pathname === '/rules/new') return '新建规则';
   if (/^\/rules\/[^/]+\/edit$/.test(pathname)) return '编辑规则';
+  if (/^\/rules\/[^/]+\/replay$/.test(pathname)) return '历史回放';
   if (pathname === '/chart') return '专业图表';
   if (pathname === '/events') return '事件';
   if (pathname === '/settings') return '设置';
@@ -158,6 +160,7 @@ export function App() {
             <Route path="/rules" element={<RulesPage />} />
             <Route path="/rules/new" element={<RuleEditorPage />} />
             <Route path="/rules/:id/edit" element={<RuleEditorPage />} />
+            <Route path="/rules/:id/replay" element={<RuleReplayPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />

@@ -254,6 +254,32 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
     return reply.code(201).send({ rule: toRuleView(rule, store, engine, market.exchangeNow()) });
   });
 
+  app.post('/api/rules/:id/trial', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const rule = store.getRule(id);
+    if (!rule || rule.archivedAt) return sendError(reply, new HttpError(404, '规则不存在'), 404);
+    const raw = bodyObject(request.body ?? {});
+    const symbol = typeof raw.symbol === 'string' ? raw.symbol.trim().toUpperCase() : '';
+    if (!symbol || !rule.symbols.includes(symbol)) {
+      return reply.code(400).send({ error: '请选择规则内的一个回放品种' });
+    }
+    const windowDays = Number(raw.windowDays ?? 7);
+    if (!Number.isFinite(windowDays) || windowDays < 1 || windowDays > 30) {
+      return reply.code(400).send({ error: '回放窗口必须在 1–30 天之间' });
+    }
+    try {
+      return await runTrial({
+        draft: rule,
+        symbol,
+        windowDays: Math.round(windowDays),
+        market,
+      });
+    } catch (error) {
+      if (error instanceof TrialError) return reply.code(error.statusCode).send({ error: error.message });
+      return sendError(reply, new HttpError(502, `回放失败：${safeError(error)}`), 502);
+    }
+  });
+
   app.post('/api/rules/validate', async (request, reply) => {
     const parsed = parseRuleInput(bodyObject(request.body));
     if (!parsed.ok) return reply.code(400).send({ error: '规则校验失败', details: parsed.errors });

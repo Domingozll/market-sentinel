@@ -106,6 +106,8 @@ export function TrialModal({
             candles={chartCandles}
             timeframe={result.timeframe}
             markers={markers}
+            markerLimit={500}
+            initialBars={Math.max(chartCandles.length, 120)}
             height={270}
             compact
           />

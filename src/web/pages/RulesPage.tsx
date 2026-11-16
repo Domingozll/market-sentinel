@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Copy, PenLine, Plus, Search, Trash2 } from 'lucide-react';
+import { Copy, History, PenLine, Plus, Search, Trash2 } from 'lucide-react';
 import type { RuleView } from '../../shared/types';
 import { api } from '../api';
 import { useAppData, useLiveVersion, useToast } from '../context';
@@ -163,6 +163,7 @@ export function RulesPage() {
             busy={busyIds.has(rule.id)}
             onToggle={(enabled) => void toggleRule(rule, enabled)}
             onEdit={() => navigate(`/rules/${rule.id}/edit`)}
+            onHistory={() => navigate(`/rules/${rule.id}/replay`)}
             onDuplicate={() => void duplicateRule(rule)}
             onDelete={() => setDeleteTarget(rule)}
           />
@@ -213,6 +214,7 @@ function RuleRow({
   busy,
   onToggle,
   onEdit,
+  onHistory,
   onDuplicate,
   onDelete,
 }: {
@@ -220,6 +222,7 @@ function RuleRow({
   busy: boolean;
   onToggle: (enabled: boolean) => void;
   onEdit: () => void;
+  onHistory: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
@@ -246,6 +249,7 @@ function RuleRow({
       <div className="count-cell">{rule.triggerCount24h}<small> 次</small></div>
       <div className="rule-actions">
         <button type="button" className="icon-btn" title="编辑" onClick={onEdit} disabled={busy}><PenLine size={13} /></button>
+        <button type="button" className="icon-btn" title="历史回放" onClick={onHistory} disabled={busy} data-testid="rule-history"><History size={13} /></button>
         <button type="button" className="icon-btn" title="复制" onClick={onDuplicate} disabled={busy}><Copy size={13} /></button>
         <button type="button" className="icon-btn danger" title="删除" onClick={onDelete} disabled={busy}><Trash2 size={13} /></button>
       </div>

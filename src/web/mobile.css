@@ -278,3 +278,25 @@
   .condition-builder-row .mini-select{flex:1 1 90px}
   .condition-builder-row .mini-select.op{flex:0 0 40px;width:40px}
 }
+
+@media (max-width:900px){
+  .replay-control-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .replay-run-wrap{grid-column:1/-1;justify-content:flex-start}
+  .replay-run-btn{width:100%}
+  .replay-table-head{display:none}
+  .replay-row{grid-template-columns:28px minmax(0,1fr) auto;gap:5px 8px;padding:10px 12px}
+  .replay-index{grid-row:1 / span 2;padding-top:1px}
+  .replay-when strong{font-size:9px}
+  .replay-price{grid-column:3;grid-row:1;text-align:right;padding-top:0;font-size:9.5px}
+  .replay-mode{grid-column:2;grid-row:2;font-size:8px}
+  .replay-conditions{grid-column:2 / -1;grid-row:3;margin-top:2px}
+  .replay-chart-wrap{padding:6px 7px 0}
+  .replay-table{max-height:520px}
+}
+@media (max-width:700px){
+  .replay-control-grid{grid-template-columns:1fr}
+  .replay-metrics{grid-template-columns:1fr 1fr;gap:7px}
+  .replay-page .page-head-actions{width:100%}
+  .replay-page .page-head-actions .btn{flex:1 1 auto;justify-content:center}
+  .replay-chart-note{font-size:8px}
+}

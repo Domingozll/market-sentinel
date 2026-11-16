@@ -182,7 +182,10 @@ export async function runTrial(options: {
           const referenceBar = referenceHistory.candles[refIndex];
           triggers.push({
             triggerAt: eventTime,
+            barOpenTime: referenceBar.openTime,
+            barCloseTime: referenceBar.openTime + TF_MS[referenceTimeframe],
             price: referenceBar.close,
+            triggerMode: draft.triggerMode,
             conditions: result.evaluation,
             truth: result.truth,
             alreadyMatched: false,
@@ -198,7 +201,9 @@ export async function runTrial(options: {
   const chartCandlesAll = referenceHistory.candles.filter(
     (candle) => candle.openTime + TF_MS[referenceTimeframe] > windowStart && candle.openTime < now,
   );
-  const chartCandles = chartCandlesAll.slice(-480);
+  // Keep the whole replay window so every listed trigger has a candle to anchor to.
+  // Valid windows top out around 10k 1m bars / 8.6k 5m bars.
+  const chartCandles = chartCandlesAll.slice(-12_000);
   const boll = computeSeries(
     chartCandles,
     'bb.upper',
@@ -222,6 +227,7 @@ export async function runTrial(options: {
     symbol: options.symbol,
     timeframe: referenceTimeframe,
     triggers,
+    triggersTruncated: triggerCount > triggers.length,
     candles: chartCandles.map((candle) => ({
       openTime: candle.openTime,
       open: formatNumber(candle.open),

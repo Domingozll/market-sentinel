@@ -155,6 +155,11 @@ export const api = {
     request<PreviewResult>('/api/rules/preview', { method: 'POST', body: JSON.stringify(payload) }),
   trialRule: (payload: RulePayload & { symbol: string; windowDays: number }) =>
     request<TrialResult>('/api/rules/trial', { method: 'POST', body: JSON.stringify(payload) }),
+  trialRuleById: (id: string, symbol: string, windowDays: number) =>
+    request<TrialResult>(`/api/rules/${id}/trial`, {
+      method: 'POST',
+      body: JSON.stringify({ symbol, windowDays }),
+    }),
   events: (params: Record<string, string | number | undefined> = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

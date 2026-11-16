@@ -8,7 +8,7 @@ import {
   rsi,
   volumeMovingAverage,
 } from '../../shared/indicators';
-import { formatCompact, formatNumber, formatTime } from '../lib/format';
+import { formatCompact, formatDateTime, formatNumber, formatTime } from '../lib/format';
 import {
   activeChartSubPanes,
   DEFAULT_CHART_INDICATORS,
@@ -107,6 +107,8 @@ export function MarketChart({
   candles,
   timeframe,
   markers = [],
+  markerLimit = 60,
+  initialBars = 120,
   height = 320,
   compact = false,
   showBollinger = true,
@@ -116,6 +118,8 @@ export function MarketChart({
   candles: Candle[];
   timeframe: string;
   markers?: ChartMarker[];
+  markerLimit?: number;
+  initialBars?: number;
   height?: number;
   compact?: boolean;
   showBollinger?: boolean;
@@ -171,8 +175,11 @@ export function MarketChart({
     chartRef.current = chart;
     chart.resize();
 
-    const labels = candles.map((candle) => formatTime(candle.openTime));
+    const spanMs = candles[candles.length - 1].openTime - candles[0].openTime;
+    const longRange = spanMs > 36 * 3_600_000;
+    const labels = candles.map((candle) => longRange ? formatDateTime(candle.openTime, false, false) : formatTime(candle.openTime));
     const candleData = candles.map((candle) => [candle.open, candle.close, candle.low, candle.high]);
+    const showMarkerLabels = markers.length <= 40;
     const markerData = markers
       .map((marker) => {
         let best = -1;
@@ -183,15 +190,19 @@ export function MarketChart({
         return best >= 0 ? { index: best, marker } : null;
       })
       .filter((item): item is { index: number; marker: ChartMarker } => Boolean(item))
-      .slice(-60)
+      .slice(-markerLimit)
       .map((item) => ({
         value: [item.index, item.marker.price],
         label: {
-          show: true,
+          show: showMarkerLabels,
           formatter: item.marker.label ?? '触发',
-          color: '#d7b875',
-          fontSize: 8,
+          color: '#ffd18a',
+          fontSize: 9,
+          fontWeight: 600,
           position: 'top',
+          backgroundColor: '#080d13',
+          padding: [2, 3],
+          borderRadius: 3,
         },
       }));
 
@@ -224,8 +235,8 @@ export function MarketChart({
       axisLabel: {
         color: '#5c7081',
         fontSize: 8.5,
-        interval: Math.max(1, Math.floor(Math.min(candles.length, 120) / 6)),
-        hideOverlap: false,
+        interval: 'auto' as const,
+        hideOverlap: true,
       },
       splitLine: { show: false },
     };
@@ -299,7 +310,7 @@ export function MarketChart({
       name: '触发',
       type: 'scatter',
       data: markerData,
-      symbolSize: 7,
+      symbolSize: 9,
       itemStyle: { color: '#efb45d', borderColor: '#080d13', borderWidth: 1 },
       z: 12,
     });
@@ -438,7 +449,7 @@ export function MarketChart({
           {
             type: 'inside',
             xAxisIndex: allAxisIndexes,
-            start: Math.max(0, 100 - (120 / Math.max(candles.length, 1)) * 100),
+            start: initialBars >= candles.length ? 0 : Math.max(0, 100 - (Math.max(initialBars, 30) / Math.max(candles.length, 1)) * 100),
             end: 100,
           },
         ],
@@ -451,7 +462,7 @@ export function MarketChart({
     const observer = new ResizeObserver(resize);
     observer.observe(ref.current);
     return () => observer.disconnect();
-  }, [candles, chartHeight, compactLayout, computed, markers, paneCount, settings, subPanes]);
+  }, [candles, chartHeight, compactLayout, computed, initialBars, markerLimit, markers, paneCount, settings, subPanes]);
 
   useEffect(
     () => () => {

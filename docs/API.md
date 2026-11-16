@@ -203,7 +203,7 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 
 ### `POST /api/rules/trial`
 
-历史试跑，只统计触发次数，不发送 Discord。
+对未保存的规则草稿做历史试跑，不发送通知、不写入正式事件。
 
 ```json
 {
@@ -213,7 +213,49 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 }
 ```
 
-`windowDays` 1–30；1m 规则最多 7 天。返回 `triggerCount`、`perDay`、`triggers`、`candles`、`indicators` 和 `warning`。
+`windowDays` 1–30；1m 规则最多 7 天。返回 `triggerCount`、`perDay`、`triggers`、`triggersTruncated`、`candles`、`indicators` 和 `warning`。
+
+### `POST /api/rules/:id/trial`
+
+对已保存规则执行历史回放。请求体只需品种和窗口，回放使用数据库中的当前规则版本；不发送通知、不写入事件。
+
+```json
+{
+  "symbol": "BTC-USDT-SWAP",
+  "windowDays": 7
+}
+```
+
+成功返回：
+
+```json
+{
+  "triggerCount": 24,
+  "perDay": 3.43,
+  "windowDays": 7,
+  "symbol": "BTC-USDT-SWAP",
+  "timeframe": "5m",
+  "triggersTruncated": false,
+  "triggers": [
+    {
+      "triggerAt": 1794211800000,
+      "barOpenTime": 1794211500000,
+      "barCloseTime": 1794211800000,
+      "price": 73891,
+      "triggerMode": "close",
+      "conditions": [],
+      "truth": true,
+      "alreadyMatched": false,
+      "markerType": "trigger"
+    }
+  ],
+  "candles": [],
+  "indicators": { "upper": [], "middle": [], "lower": [] },
+  "warning": "仅统计规则触发次数，不计算盈亏，不代表策略有效性。"
+}
+```
+
+`candles` 覆盖完整回放窗口，前端用 `#序号` 与 `triggers` 顺序对应。单次最多保留 500 条触发快照，`triggersTruncated` 表示超出上限。历史数据不足返回 422，规则不存在返回 404。
 
 ## 事件
 
@@ -420,6 +462,7 @@ data: {"type":"rules","at":1794212435396}
 | 400 | 参数/规则/设置校验失败 |
 | 404 | 规则、事件或 API 不存在 |
 | 409 | 业务冲突（最多规则数、不可重试等） |
+| 422 | 历史数据不足或无法完成回放 |
 | 502 | OKX / Discord / 试跑上游失败 |
 | 500 | 未分类服务端错误 |
 

@@ -100,6 +100,22 @@ test.describe.serial('Market Sentinel system flow', () => {
   });
 
 
+  test('saved rule replay shows historical candles, markers and trigger list', async ({ page }) => {
+    await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('rule-history').first().click();
+    await expect(page.getByText('历史 K 线与通知位置')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('replay-chart').locator('canvas')).toBeVisible();
+    await expect(page.getByTestId('replay-list')).toBeVisible();
+    const rows = page.getByTestId('replay-row');
+    if (await rows.count()) {
+      await expect(rows.first()).toContainText('#1');
+      await expect(rows.first()).toContainText('收盘确认');
+    } else {
+      await expect(page.getByTestId('replay-list')).toContainText('窗口内没有触发');
+    }
+  });
+
   test('chart indicators can be enabled, configured, hidden and persisted', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByTestId('market-chart')).toBeVisible();
@@ -242,6 +258,12 @@ test.describe.serial('Market Sentinel system flow', () => {
       await page.getByRole('link', { name: /设置/ }).click();
       await expect(page.getByRole('heading', { name: '设置' })).toBeVisible();
       await noHorizontalOverflow('settings');
+
+      await page.goto('/rules', { waitUntil: 'domcontentloaded' });
+      await page.getByTestId('rule-history').first().click();
+      await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('replay-chart')).toBeVisible();
+      await noHorizontalOverflow('history replay');
 
       await page.goto('/rules/new', { waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('heading', { name: '新建规则' })).toBeVisible();

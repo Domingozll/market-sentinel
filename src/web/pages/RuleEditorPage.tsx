@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ClipboardList,
+  History,
   Loader2,
   PlayCircle,
   Save,
@@ -351,6 +352,11 @@ export function RuleEditorPage() {
               <option key={template.key} value={template.key}>{template.title}</option>
             ))}
           </select>
+          {id ? (
+            <button type="button" className="btn btn-ghost" onClick={() => navigate(`/rules/${id}/replay`)}>
+              <History size={14} /> 历史回放
+            </button>
+          ) : null}
           <button type="button" className="btn btn-secondary" onClick={() => void openTrial()}>
             <PlayCircle size={14} /> 试跑
           </button>
