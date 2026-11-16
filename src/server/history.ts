@@ -85,7 +85,9 @@ export async function loadLocalFirstHistory(options: {
     };
   }
 
-  let local = store.getCandleRange(instId, timeframe, start, last);
+  const expectedBars = Math.floor((last - start) / tfMs) + 1;
+  const localLimit = Math.max(20_000, expectedBars + 8);
+  let local = store.getCandleRange(instId, timeframe, start, last, localLimit);
   const localBefore = local.length;
   let fetchedBars = 0;
   const fetchErrors: string[] = [];
@@ -113,7 +115,7 @@ export async function loadLocalFirstHistory(options: {
       fetchErrors.push(error instanceof Error ? error.message : String(error));
     }
 
-    local = store.getCandleRange(instId, timeframe, start, last);
+    local = store.getCandleRange(instId, timeframe, start, last, localLimit);
     gaps = missingRuns(local, start, last, tfMs);
   }
 

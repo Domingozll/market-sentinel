@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed a 20,000-row local candle range cap that made 1m/30-day replays report false 46% coverage and repeatedly refetch the same missing bars.
 - Async replay elapsed clock now derives from the job start timestamp and ticks every second instead of staying at 0.
 - Position calculator no longer auto-runs on every keystroke; an explicit “开始计算” button produces results only after parameters are confirmed.
 - Long-window replay presets for 1m/3m rules are no longer silently shortened; presets above the convenience limit run through the async batch pipeline, including reload-safe jobs.
@@ -73,6 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed a 20,000-row local candle range cap that made 1m/30-day replays report false 46% coverage and repeatedly refetch the same missing bars.
 - Async replay elapsed clock now derives from the job start timestamp and ticks every second instead of staying at 0.
 - Position calculator no longer auto-runs on every keystroke; an explicit “开始计算” button produces results only after parameters are confirmed.
 - New delivery attempts no longer use the exchange clock as a scheduling source.

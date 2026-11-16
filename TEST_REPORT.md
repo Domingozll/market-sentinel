@@ -25,7 +25,7 @@
 | 测试层 | 结果 |
 |---|---|
 | TypeScript 类型检查 | 通过 |
-| 单元 + 集成测试 | **30 个测试文件，159 个测试全部通过**（~2s 测试耗时） |
+| 单元 + 集成测试 | **30 个测试文件，160 个测试全部通过**（~2s 测试耗时） |
 | 浏览器 E2E | **17 个场景全部通过**（~29s） |
 | 构建 | 通过（Vite + esbuild；服务端 241 KB，主前端 1.52 MB / 494 KB gzip；KLineChart 共享懒加载 chunk 265 KB / 70 KB gzip；回放页 chunk 19 KB / 6 KB gzip） |
 | 依赖安全审计 | `npm audit`、`npm audit --omit=dev` 均为 **0 vulnerabilities** |
@@ -69,7 +69,7 @@ http://127.0.0.1:8787
 | `tests/integration/rule-filter.test.ts` | 2 | 美股过滤开关 CRUD、负数/小数阈值持久化、非法过滤值拒绝 |
 | `tests/integration/rule-replay.test.ts` | 5 | 已保存规则回放 API、图表周期、触发元数据、记录保存/读取、规则版本更新后新快照、仓位计算 API、非法参数/规则 404 |
 | `tests/integration/replay-async.test.ts` | 1 | 异步回放任务持久化、预估耗时、自定义区间完成/保存 |
-| `tests/integration/history.test.ts` | 7 | 本地完整复用、前缀/尾部/内部缺口增量补齐、二次复用、缺口拒绝与覆盖率 |
+| `tests/integration/history.test.ts` | 8 | 本地完整复用、前缀/尾部/内部缺口增量补齐、二次复用、缺口拒绝与覆盖率 |
 | `tests/integration/pushplus.test.ts` | 7 | PushPlus payload、固定端点、成功/429/5xx/业务错误、Token 脱敏、渠道投递全链路 |
 | `tests/integration/api.test.ts` | 9 | 规则 CRUD、预览、设置脱敏、CSRF、事件、Discord 投递、数据接口、试跑 |
 | `tests/integration/api-extra.test.ts` | 5 | 设置测试端点、永久失败手动重试、事件快照不可变、过滤与 404 |
@@ -241,6 +241,7 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 | 22 | 批量仓位出现多个同时持仓，止盈可能被后续信号干扰 | 批量保持单仓位滚动：下一选中信号出现时按该信号价格强制平仓上一笔；增加无重叠、止盈生效和滚动平仓测试 |
 | 23 | 仓位计算使用覆盖仅 46% 的信号周期数据，最后一笔在缺失数据处按“区间结束”结算 | 计算前严格校验信号周期并分批补数；补不齐返回 422，不再生成虚假区间结束结果 |
 | 24 | 仓位计算无持久化记录，重复参数重复拉数，历史无法查看 | 新增 position_calculations、同回放/点位/参数缓存、历史列表与详情恢复；成功结果落 SQLite |
+| 26 | 1m/30d 回放读取本地 K 线被默认 20,000 根 LIMIT 截断，误报 46.1% 覆盖并反复补数 | 按请求区间动态提高 getCandleRange 上限；增加 25,000 根本地读取测试；现有旧快照需重跑 |
 | 25 | 40x 杠杆配 40% 止损时止损价远高于强平价，用户误以为止损应生效 | 明确提示止损超过估算强平价、止损比例×杠杆≥100%；默认杠杆改为 1x |
 
 ## 7. 已知限制 / 未覆盖项

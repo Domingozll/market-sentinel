@@ -76,6 +76,31 @@ describe('local-first historical data', () => {
     store.close();
   });
 
+  it('reads more than the legacy 20k candle range limit', async () => {
+    const store = makeStore();
+    const candles = makeCandles({
+      instId: symbol,
+      timeframe: '1m',
+      count: 25_000,
+      endCloseTime: Math.floor((now - 60_000) / 60_000) * 60_000,
+    });
+    store.upsertCandles(candles);
+    const market = new FakeMarket(now);
+    market.setHistory(symbol, '1m', candles);
+    const loaded = await loadLocalFirstHistory({
+      store,
+      market,
+      instId: symbol,
+      timeframe: '1m',
+      from: candles[0].openTime,
+      to: candles[candles.length - 1].openTime + 60_000,
+    });
+    expect(loaded.candles).toHaveLength(25_000);
+    expect(loaded.gaps).toBe(0);
+    expect(loaded.coverage).toBe(1);
+    store.close();
+  });
+
   it('rejects an incomplete strict range after attempting batch fill', async () => {
     const store = makeStore();
     const full = history(100);
