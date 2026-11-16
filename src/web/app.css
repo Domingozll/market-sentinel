@@ -620,3 +620,8 @@ h1,h2,h3,p{margin-top:0}
 @media (max-width:700px){
   .position-history-head,.position-history-row{min-width:700px}
 }
+
+.position-risk-hint{display:flex;align-items:flex-start;gap:7px;padding:8px 10px;border:1px solid rgba(113,167,255,.2);border-radius:7px;background:rgba(113,167,255,.045);color:#8daec4;font-family:var(--mono);font-size:8px;line-height:1.65}
+.position-risk-hint svg{flex:0 0 auto;color:#8bb7f4;margin-top:1px}
+.position-risk-hint.danger{border-color:rgba(240,97,106,.3);background:rgba(240,97,106,.06);color:#d9a4a7}
+.position-risk-hint.danger svg{color:#f08b92}

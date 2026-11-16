@@ -178,7 +178,7 @@ function canonicalPositionConfig(config: PositionCalculatorConfig) {
 
 function positionCacheKey(config: PositionCalculatorConfig, triggerIndexes: number[]): string {
   return createHash('sha256').update(JSON.stringify({
-    algorithm: 'position-calc-v2',
+    algorithm: 'position-calc-v3',
     config: canonicalPositionConfig(config),
     triggerIndexes: [...triggerIndexes].sort((a, b) => a - b),
   })).digest('hex');

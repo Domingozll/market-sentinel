@@ -179,6 +179,14 @@ export function PositionCalculatorModal({
     setDirty(true);
   };
 
+  const liquidationDistancePct = config.leverage > 0 ? 100 / config.leverage : null;
+  const stopPercent = config.stop.mode === 'percent' && typeof config.stop.percent === 'number' && Number.isFinite(config.stop.percent)
+    ? config.stop.percent
+    : null;
+  const stopBeyondLiquidation = stopPercent !== null
+    && liquidationDistancePct !== null
+    && stopPercent >= liquidationDistancePct;
+
   return (
     <Modal
       open={open}
@@ -212,9 +220,24 @@ export function PositionCalculatorModal({
         </div>
 
         <div className="position-exits">
-          <ExitControl label="止盈（可选）" rule={config.target} options={options} onChange={(target) => updateConfig({ target })} />
-          <ExitControl label="止损（可选）" rule={config.stop} options={options} onChange={(stop) => updateConfig({ stop })} />
+          <ExitControl label="止盈（可选，价格比例）" rule={config.target} options={options} onChange={(target) => updateConfig({ target })} />
+          <ExitControl label="止损（可选，价格比例）" rule={config.stop} options={options} onChange={(stop) => updateConfig({ stop })} />
         </div>
+
+        {liquidationDistancePct !== null ? (
+          <div className={`position-risk-hint${stopBeyondLiquidation ? ' danger' : ''}`}>
+            <TriangleAlert size={13} />
+            <span>
+              {config.leverage}x 估算强平距离约 {liquidationDistancePct.toFixed(2)}%（按逐仓、忽略维持保证金与资金费估算）。
+              {stopPercent === null
+                ? ' 未设置比例止损。'
+                : stopBeyondLiquidation
+                  ? ` 当前 ${stopPercent}% 止损在强平价之外，实际会先触发强平；如需止损先生效，请降低杠杆到约 ${Math.floor(100 / stopPercent)}x 以下，或把止损比例降到约 ${liquidationDistancePct.toFixed(2)}% 以内。`
+                  : ` 当前 ${stopPercent}% 止损位于估算强平之前，止损可以先生效。`}
+              {' '}止损比例是价格变动百分比，不是保证金亏损百分比。
+            </span>
+          </div>
+        ) : null}
 
         {options.length === 0 ? (
           <div className="form-hint">当前信号没有可用于止盈/止损的价格类指标；可改用固定价格或固定比例。</div>

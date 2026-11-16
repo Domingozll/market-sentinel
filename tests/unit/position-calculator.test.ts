@@ -282,6 +282,21 @@ describe('position calculator', () => {
     expect(trade.equityAfter).toBe(0);
   });
 
+  it('marks risk/reward unavailable when the stop is beyond liquidation', () => {
+    const result = calculatePositions({
+      triggers: [trigger()],
+      triggerIndexes: [0],
+      candles: [candle(300_000, 100, 101, 99, 100)],
+      timeframeMs: tfMs,
+      endTime: 900_000,
+      config: config({ leverage: 40, target: { mode: 'percent', percent: 50 }, stop: { mode: 'percent', percent: 25 } }),
+    });
+    const trade = result.trades[0];
+    expect(trade.stopBeyondLiquidation).toBe(true);
+    expect(trade.riskReward).toBeNull();
+    expect(result.warnings.join(' ')).toContain('盈亏比不可用');
+  });
+
   it('caps isolated-margin losses at the allocated capital when liquidated', () => {
     const result = calculatePositions({
       triggers: [trigger()],

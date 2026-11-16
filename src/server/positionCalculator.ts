@@ -165,7 +165,13 @@ function simulateTrade(
 
   const plannedTargetPnl = targetPrice === null ? null : plannedNet(quantity, entryPrice, targetPrice, direction, config);
   const plannedStopPnl = stopPrice === null ? null : plannedNet(quantity, entryPrice, stopPrice, direction, config);
-  const riskReward = plannedTargetPnl !== null && plannedStopPnl !== null && plannedStopPnl < 0
+  const levelEpsilon = Math.max(Math.abs(entryPrice), 1) * 1e-9;
+  const stopBeyondLiquidation = stopPrice !== null && (direction === 'long'
+    ? stopPrice < liquidationPrice - levelEpsilon
+    : stopPrice > liquidationPrice + levelEpsilon);
+  // A stop behind liquidation is not an executable risk level; showing a
+  // nominal reward/risk ratio here would materially mislead the user.
+  const riskReward = plannedTargetPnl !== null && plannedStopPnl !== null && plannedStopPnl < 0 && !stopBeyondLiquidation
     ? plannedTargetPnl / Math.abs(plannedStopPnl)
     : null;
 
@@ -183,7 +189,6 @@ function simulateTrade(
   // If the explicit stop is at the same level as the estimated liquidation,
   // honour the stop order first; this is especially important for common
   // defaults such as 5x leverage + 20% stop.
-  const levelEpsilon = Math.max(Math.abs(entryPrice), 1) * 1e-9;
   const stopIsCloser = stopPrice !== null && (
     direction === 'long'
       ? stopPrice >= liquidationPrice - levelEpsilon
@@ -277,6 +282,7 @@ function simulateTrade(
     stopPrice,
     plannedTargetPnl,
     plannedStopPnl,
+    stopBeyondLiquidation,
     riskReward,
     liquidationPrice,
     grossPnl,
@@ -342,11 +348,8 @@ export function calculatePositions(options: {
     equity = trade.equityAfter;
     if (trade.exitReason === 'next-signal') forcedCount++;
     if (trade.exitReason === 'liquidation') warnings.push(`#${item.index + 1} 触发估算强平，收益按保证金上限截断`);
-    const levelEpsilon = Math.max(Math.abs(trade.entryPrice), 1) * 1e-9;
-    if (trade.stopPrice !== null && (config.direction === 'long'
-      ? trade.stopPrice < trade.liquidationPrice - levelEpsilon
-      : trade.stopPrice > trade.liquidationPrice + levelEpsilon)) {
-      warnings.push(`#${item.index + 1} 止损价已超过估算强平价，实际可能先触发强平；请降低杠杆或缩小止损比例`);
+    if (trade.stopBeyondLiquidation) {
+      warnings.push(`#${item.index + 1} 止损价已超过估算强平价，盈亏比不可用；实际可能先触发强平，请降低杠杆或缩小止损比例`);
     }
     if (trade.exitReason === 'no-data') warnings.push(`#${item.index + 1} 之后没有可用 K 线，按开仓价退出`);
   }

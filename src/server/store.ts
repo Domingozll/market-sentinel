@@ -1205,6 +1205,16 @@ export class Store {
 
   private mapPositionCalculation(row: PositionCalculationRow): PositionCalculationRecord {
     const calculation = JSON.parse(row.result_json) as PositionCalculationResult;
+    // Older cached records predate stopBeyondLiquidation; normalize them on
+    // read so history cannot display a misleading nominal risk/reward.
+    for (const trade of calculation.trades) {
+      const epsilon = Math.max(Math.abs(trade.entryPrice), 1) * 1e-9;
+      const beyond = trade.stopPrice !== null && (calculation.config.direction === 'long'
+        ? trade.stopPrice < trade.liquidationPrice - epsilon
+        : trade.stopPrice > trade.liquidationPrice + epsilon);
+      if (typeof trade.stopBeyondLiquidation !== 'boolean') trade.stopBeyondLiquidation = beyond;
+      if (beyond) trade.riskReward = null;
+    }
     return {
       id: row.id,
       replayId: row.replay_id,

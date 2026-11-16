@@ -530,6 +530,8 @@ export interface PositionTradeResult {
   stopPrice: number | null;
   plannedTargetPnl: number | null;
   plannedStopPnl: number | null;
+  /** True when the configured stop cannot fill before liquidation. */
+  stopBeyondLiquidation: boolean;
   riskReward: number | null;
   liquidationPrice: number;
   grossPnl: number;
