@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Position calculator now invalidates in-flight requests when parameters change and labels each result with its calculation timestamp and server-side parameter snapshot, avoiding stale-result confusion.
 - Take-profit now supports the same margin-return mode as stop-loss, solving the target price from net PnL including fees and slippage.
 - Batch position replay now skips a signal that arrives while the current position is still open instead of force-closing the position; skipped signals are reported by index.
 - Position config now warns before calculation when a percentage stop lies beyond the estimated liquidation distance and explains that stop percentages are price moves, not margin-loss percentages.
@@ -79,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Position calculator now invalidates in-flight requests when parameters change and labels each result with its calculation timestamp and server-side parameter snapshot, avoiding stale-result confusion.
 - Take-profit now supports the same margin-return mode as stop-loss, solving the target price from net PnL including fees and slippage.
 - Batch position replay now skips a signal that arrives while the current position is still open instead of force-closing the position; skipped signals are reported by index.
 - Position config now warns before calculation when a percentage stop lies beyond the estimated liquidation distance and explains that stop percentages are price moves, not margin-loss percentages.

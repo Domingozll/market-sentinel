@@ -507,6 +507,14 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(modal.getByText('仓位计算', { exact: true })).toBeVisible();
     await modal.getByTestId('position-calculate').click();
     await expect(modal.getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
+    const firstEquity = await modal.getByTestId('position-calc-summary').locator('div').nth(1).innerText();
+    await modal.locator('.position-config-grid input[type="number"]').nth(0).fill('2000');
+    await expect(modal.getByTestId('position-calc-summary')).toHaveCount(0);
+    await expect(modal.getByTestId('position-result-meta')).toHaveCount(0);
+    await modal.getByTestId('position-calculate').click();
+    await expect(modal.getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
+    await expect(modal.getByTestId('position-result-meta')).toContainText('本金 2,000');
+    expect(await modal.getByTestId('position-calc-summary').locator('div').nth(1).innerText()).not.toBe(firstEquity);
     await expect(modal.getByTestId('position-calc-single')).toContainText('净盈亏');
     await expect(modal.getByTestId('position-calc-single')).toContainText('开仓时间');
     await expect(modal.getByTestId('position-calc-single')).toContainText('平仓时间');

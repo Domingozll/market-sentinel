@@ -75,6 +75,14 @@ function priceSeriesOptions(): { key: SeriesKey; label: string }[] {
     .map((series) => ({ key: series, label: SERIES_CATALOG[series].label }));
 }
 
+function exitSummary(rule: PositionExitRule): string {
+  if (rule.mode === 'none') return '不设置';
+  if (rule.mode === 'price') return `价格 ${formatNumber(rule.price ?? 0, 2)}`;
+  if (rule.mode === 'percent') return `价格比例 ${formatNumber(rule.percent ?? 0, 2)}%`;
+  if (rule.mode === 'roi') return `保证金收益率 ${formatNumber(rule.roiPercent ?? 0, 2)}%`;
+  return SERIES_CATALOG[rule.series ?? 'price.close']?.label ?? '指标';
+}
+
 
 function ExitControl({
   label,
@@ -149,6 +157,7 @@ export function PositionCalculatorModal({
   const [calculation, setCalculation] = useState<PositionCalculationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [calculatedAt, setCalculatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
   const options = useMemo(() => priceSeriesOptions(), []);
@@ -158,6 +167,7 @@ export function PositionCalculatorModal({
     if (!open) return;
     setConfig(initialConfig ?? initialCalculation?.config ?? DEFAULT_CONFIG);
     setCalculation(initialCalculation ?? null);
+    setCalculatedAt(initialCalculation ? Date.now() : null);
     setError(null);
     setDirty(false);
   }, [open, selectedIndexes.join(','), replayId, initialConfig, initialCalculation]);
@@ -171,6 +181,7 @@ export function PositionCalculatorModal({
       const { calculation: next } = await api.positionCalc(replayId, config, selectedIndexes);
       if (seq !== requestRef.current) return;
       setCalculation(next);
+      setCalculatedAt(Date.now());
       setDirty(false);
     } catch (reason) {
       if (seq !== requestRef.current) return;
@@ -182,8 +193,12 @@ export function PositionCalculatorModal({
   }
 
   const updateConfig = (next: Partial<PositionCalculatorConfig>) => {
+    // Invalidate an in-flight response as soon as any parameter changes.
+    requestRef.current++;
     setConfig((previous) => ({ ...previous, ...next }));
     setCalculation(null);
+    setCalculatedAt(null);
+    setLoading(false);
     setError(null);
     setDirty(true);
   };
@@ -284,6 +299,10 @@ export function PositionCalculatorModal({
         {loading ? <div className="position-loading"><Loader2 size={13} className="spin" /> 正在按信号周期 K 线计算…</div> : null}
         {calculation ? (
           <>
+            <div className="position-result-meta" data-testid="position-result-meta">
+              计算于 {formatDateTime(calculatedAt ?? Date.now())} · 本金 {formatNumber(calculation.config.capital, 2)} USDT · {directionLabel(calculation.config.direction)} {calculation.config.leverage}x · 止盈：{exitSummary(calculation.config.target)} · 止损：{exitSummary(calculation.config.stop)}
+            </div>
+
             <div className="position-summary" data-testid="position-calc-summary">
               <div><span>交易笔数</span><strong>{calculation.trades.length}</strong></div>
               <div><span>期末权益</span><strong>{money(calculation.finalEquity)} USDT</strong></div>
