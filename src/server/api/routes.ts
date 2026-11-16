@@ -519,6 +519,7 @@ export async function registerApiRoutes(app: FastifyInstance, services: ApiServi
         timeframeMs: tfMs,
         endTime,
         config,
+        symbol: replay.symbol,
       });
       return { calculation };
     } catch (error) {

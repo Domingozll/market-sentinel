@@ -506,13 +506,25 @@ export type PositionExitReason = 'target' | 'stop' | 'end' | 'liquidation' | 'no
 
 export interface PositionTradeResult {
   index: number;
+  /** Symbol of the replayed instrument. */
+  symbol: string;
+  direction: PositionDirection;
+  leverage: number;
+  marginMode: 'isolated';
   triggerAt: number;
   entryAt: number;
+  exitAt: number;
+  durationMs: number;
   entryPrice: number;
+  exitPrice: number;
   quantity: number;
   notional: number;
-  exitAt: number;
-  exitPrice: number;
+  /** Allocated margin for this trade. */
+  initialMargin: number;
+  /** Not modelled by this OHLC calculator. */
+  maintenanceMargin: number | null;
+  /** Not modelled by this OHLC calculator. */
+  fundingFee: number | null;
   exitReason: PositionExitReason;
   targetPrice: number | null;
   stopPrice: number | null;
@@ -521,9 +533,14 @@ export interface PositionTradeResult {
   riskReward: number | null;
   liquidationPrice: number;
   grossPnl: number;
+  openFee: number;
+  closeFee: number;
   fees: number;
   netPnl: number;
+  /** Return on allocated margin. */
   roiPct: number;
+  /** Net PnL as a percentage of opening notional. */
+  pnlOnNotionalPct: number;
   equityBefore: number;
   equityAfter: number;
 }

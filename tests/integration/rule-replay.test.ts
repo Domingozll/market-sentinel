@@ -242,6 +242,20 @@ describe('saved rule historical replay', () => {
     expect(one.body.calculation.trades[0].entryPrice).toBeGreaterThan(0);
     expect(Number.isFinite(one.body.calculation.trades[0].netPnl)).toBe(true);
     expect(one.body.calculation.trades[0].equityBefore).toBe(1_000);
+    expect(one.body.calculation.trades[0]).toMatchObject({
+      symbol,
+      direction: 'long',
+      leverage: 5,
+      marginMode: 'isolated',
+      initialMargin: 1_000,
+      maintenanceMargin: null,
+      fundingFee: null,
+    });
+    expect(one.body.calculation.trades[0].entryAt).toBeGreaterThan(0);
+    expect(one.body.calculation.trades[0].exitAt).toBeGreaterThanOrEqual(one.body.calculation.trades[0].entryAt);
+    expect(one.body.calculation.trades[0].durationMs).toBeGreaterThanOrEqual(0);
+    expect(one.body.calculation.trades[0].openFee + one.body.calculation.trades[0].closeFee)
+      .toBeCloseTo(one.body.calculation.trades[0].fees, 8);
 
     const batch = await jsonRequest(runtime.runtime, {
       method: 'POST',

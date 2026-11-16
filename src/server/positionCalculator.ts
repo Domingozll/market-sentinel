@@ -151,6 +151,7 @@ function simulateTrade(
   timeframeMs: number,
   endTime: number,
   equityBefore: number,
+  optionsSymbol = '',
 ): PositionTradeResult {
   const direction = config.direction;
   const entryAt = trigger.barCloseTime > 0 ? trigger.barCloseTime : trigger.triggerAt;
@@ -236,7 +237,9 @@ function simulateTrade(
 
   const exitPrice = exitWithSlippage(rawExit, direction, config.slippagePct);
   const grossPnl = direction === 'long' ? (exitPrice - entryPrice) * quantity : (entryPrice - exitPrice) * quantity;
-  const fees = feeAmount(quantity, entryPrice, config.feeRatePct) + feeAmount(quantity, exitPrice, config.feeRatePct);
+  const openFee = feeAmount(quantity, entryPrice, config.feeRatePct);
+  const closeFee = feeAmount(quantity, exitPrice, config.feeRatePct);
+  const fees = openFee + closeFee;
   let netPnl = grossPnl - fees;
   let equityAfter = equityBefore + netPnl;
   if (equityAfter < 0) {
@@ -246,12 +249,20 @@ function simulateTrade(
   }
   return {
     index: 0,
+    symbol: optionsSymbol,
+    direction,
+    leverage: config.leverage,
+    marginMode: 'isolated',
     triggerAt: trigger.triggerAt,
     entryAt,
+    exitAt,
+    durationMs: Math.max(0, exitAt - entryAt),
     entryPrice,
     quantity,
     notional: quantity * entryPrice,
-    exitAt,
+    initialMargin: equityBefore,
+    maintenanceMargin: null,
+    fundingFee: null,
     exitPrice,
     exitReason: reason,
     targetPrice,
@@ -261,9 +272,12 @@ function simulateTrade(
     riskReward,
     liquidationPrice,
     grossPnl,
+    openFee,
+    closeFee,
     fees,
     netPnl,
     roiPct: (netPnl / equityBefore) * 100,
+    pnlOnNotionalPct: quantity * entryPrice > 0 ? (netPnl / (quantity * entryPrice)) * 100 : 0,
     equityBefore,
     equityAfter,
   };
@@ -276,6 +290,7 @@ export function calculatePositions(options: {
   timeframeMs: number;
   endTime: number;
   config: PositionCalculatorConfig;
+  symbol?: string;
 }): PositionCalculationResult {
   const { triggers, candles, config } = options;
   validatePositionConfig(config);
@@ -303,7 +318,7 @@ export function calculatePositions(options: {
       continue;
     }
     if (item.trigger.triggerAt < lastExitAt) hasOverlap = true;
-    const trade = simulateTrade(item.trigger, candles, config, options.timeframeMs, options.endTime, equity);
+    const trade = simulateTrade(item.trigger, candles, config, options.timeframeMs, options.endTime, equity, options.symbol);
     trade.index = item.index;
     trades.push(trade);
     equity = trade.equityAfter;

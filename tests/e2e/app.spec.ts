@@ -506,6 +506,11 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(modal.getByText('仓位计算', { exact: true })).toBeVisible();
     await expect(modal.getByTestId('position-calc-summary')).toBeVisible({ timeout: 15_000 });
     await expect(modal.getByTestId('position-calc-single')).toContainText('净盈亏');
+    await expect(modal.getByTestId('position-calc-single')).toContainText('开仓时间');
+    await expect(modal.getByTestId('position-calc-single')).toContainText('平仓时间');
+    await expect(modal.getByTestId('position-calc-single')).toContainText('总手续费');
+    await expect(modal.getByTestId('position-calc-single')).toContainText('收益率（保证金）');
+    await expect(modal.getByTestId('position-calc-single')).toContainText('估算强平');
     const exits = modal.locator('.position-exit-control');
     await exits.nth(0).locator('select').selectOption('percent');
     await exits.nth(0).locator('input[type="number"]').fill('2');

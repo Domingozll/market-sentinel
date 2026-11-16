@@ -73,9 +73,15 @@ describe('position calculator', () => {
     expect(trade.exitPrice).toBe(110);
     expect(trade.exitReason).toBe('target');
     expect(trade.grossPnl).toBeCloseTo(500, 8);
+    expect(trade.openFee + trade.closeFee).toBeCloseTo(trade.fees, 8);
     expect(trade.fees).toBeCloseTo(5.25, 8);
     expect(trade.netPnl).toBeCloseTo(494.75, 8);
     expect(trade.roiPct).toBeCloseTo(49.475, 8);
+    expect(trade.pnlOnNotionalPct).toBeCloseTo((494.75 / 5000) * 100, 8);
+    expect(trade.initialMargin).toBe(1000);
+    expect(trade.durationMs).toBe(300_000);
+    expect(trade.maintenanceMargin).toBeNull();
+    expect(trade.fundingFee).toBeNull();
     expect(trade.riskReward).toBeCloseTo(494.75 / 504.75, 8);
     expect(result.finalEquity).toBeCloseTo(1494.75, 8);
   });

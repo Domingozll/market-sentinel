@@ -40,6 +40,32 @@ function pct(value: number | null | undefined): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(3)}%`;
 }
 
+function exitLabel(reason: string): string {
+  return reason === 'target'
+    ? '止盈'
+    : reason === 'stop'
+      ? '止损'
+      : reason === 'liquidation'
+        ? '强平'
+        : reason === 'no-data'
+          ? '无后续K线'
+          : '区间结束';
+}
+
+function durationLabel(durationMs: number): string {
+  const seconds = Math.max(0, Math.round(durationMs / 1000));
+  if (seconds < 60) return `${seconds} 秒`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  if (hours > 0) return `${hours} 小时${minutes ? ` ${minutes} 分` : ''}`;
+  return `${minutes} 分${rest ? ` ${rest} 秒` : ''}`;
+}
+
+function directionLabel(direction: 'long' | 'short'): string {
+  return direction === 'long' ? '做多' : '做空';
+}
+
 function priceSeriesOptions(): { key: SeriesKey; label: string }[] {
   return (Object.keys(SERIES_CATALOG) as SeriesKey[])
     .filter((series) => SERIES_CATALOG[series].unit === 'price')
@@ -209,29 +235,63 @@ export function PositionCalculatorModal({
               <div className="position-skipped">跳过 {calculation.skipped.length} 条：{calculation.skipped.map((item) => `#${item.index + 1}${item.reason === 'overlap' ? '（重叠）' : '（权益不足）'}`).join('、')}</div>
             ) : null}
 
-            {calculation.trades.length === 1 && !isBatch ? (
-              <div className="position-single" data-testid="position-calc-single">
-                <div className="position-single-head"><Calculator size={14} /> 单笔结果</div>
-                <div className="position-kv"><span>开仓 / 平仓</span><strong>{money(calculation.trades[0].entryPrice)} → {money(calculation.trades[0].exitPrice)}</strong></div>
-                <div className="position-kv"><span>数量 / 名义仓位</span><strong>{formatNumber(calculation.trades[0].quantity, 6)} / {money(calculation.trades[0].notional)} USDT</strong></div>
-                <div className="position-kv"><span>退出原因</span><strong>{calculation.trades[0].exitReason === 'target' ? '止盈' : calculation.trades[0].exitReason === 'stop' ? '止损' : calculation.trades[0].exitReason === 'liquidation' ? '强平' : calculation.trades[0].exitReason === 'no-data' ? '无后续K线' : '区间结束'}</strong></div>
-                <div className="position-kv"><span>毛盈亏 / 手续费</span><strong>{money(calculation.trades[0].grossPnl)} / {money(calculation.trades[0].fees)} USDT</strong></div>
-                <div className="position-kv"><span>净盈亏 / 收益率</span><strong className={calculation.trades[0].netPnl >= 0 ? 'positive' : 'negative'}>{money(calculation.trades[0].netPnl)} USDT / {pct(calculation.trades[0].roiPct)}</strong></div>
-                <div className="position-kv"><span>止盈 / 止损 / 估算强平</span><strong>{money(calculation.trades[0].targetPrice)} / {money(calculation.trades[0].stopPrice)} / {money(calculation.trades[0].liquidationPrice)}</strong></div>
-                <div className="position-kv"><span>盈亏比</span><strong>{calculation.trades[0].riskReward === null ? '—' : `${calculation.trades[0].riskReward.toFixed(2)} : 1`}</strong></div>
-                <div className="position-kv"><span>平仓时间</span><strong>{formatDateTime(calculation.trades[0].exitAt)}</strong></div>
-              </div>
-            ) : calculation.trades.length ? (
+            {calculation.trades.length === 1 && !isBatch ? (() => {
+              const trade = calculation.trades[0];
+              return (
+                <div className="position-single" data-testid="position-calc-single">
+                  <div className="position-single-head"><Calculator size={14} /> 仓位详情</div>
+                  <div className="position-single-section">合约与仓位</div>
+                  <div className="position-kv"><span>交易品种</span><strong>{trade.symbol || '—'}</strong></div>
+                  <div className="position-kv"><span>方向 / 杠杆</span><strong>{directionLabel(trade.direction)} · {trade.leverage}x</strong></div>
+                  <div className="position-kv"><span>保证金模式</span><strong>逐仓（OHLC 模拟）</strong></div>
+                  <div className="position-kv"><span>开仓时间</span><strong>{formatDateTime(trade.entryAt)}</strong></div>
+                  <div className="position-kv"><span>平仓时间</span><strong>{formatDateTime(trade.exitAt)}</strong></div>
+                  <div className="position-kv"><span>持仓时长</span><strong>{durationLabel(trade.durationMs)}</strong></div>
+
+                  <div className="position-single-section">价格与数量</div>
+                  <div className="position-kv"><span>开仓均价</span><strong>{money(trade.entryPrice)}</strong></div>
+                  <div className="position-kv"><span>平仓均价</span><strong>{money(trade.exitPrice)}</strong></div>
+                  <div className="position-kv"><span>数量（标的）</span><strong>{formatNumber(trade.quantity, 6)}</strong></div>
+                  <div className="position-kv"><span>标记价格 / 订单类型</span><strong>—（已平仓） / 市价（模拟）</strong></div>
+                  <div className="position-kv"><span>名义价值</span><strong>{money(trade.notional)} USDT</strong></div>
+                  <div className="position-kv"><span>初始保证金</span><strong>{money(trade.initialMargin)} USDT</strong></div>
+                  <div className="position-kv"><span>维持保证金 / 资金费</span><strong>{trade.maintenanceMargin === null ? '未计' : money(trade.maintenanceMargin)} / {trade.fundingFee === null ? '未计' : money(trade.fundingFee)}</strong></div>
+                  <div className="position-kv"><span>止盈 / 止损 / 估算强平</span><strong>{money(trade.targetPrice)} / {money(trade.stopPrice)} / {money(trade.liquidationPrice)}</strong></div>
+                  <div className="position-kv"><span>退出原因</span><strong>{exitLabel(trade.exitReason)}</strong></div>
+
+                  <div className="position-single-section">收益与费用</div>
+                  <div className="position-kv"><span>毛盈亏 / 净盈亏</span><strong className={trade.netPnl >= 0 ? 'positive' : 'negative'}>{money(trade.grossPnl)} / {money(trade.netPnl)} USDT</strong></div>
+                  <div className="position-kv"><span>开仓 / 平仓手续费</span><strong>{money(trade.openFee)} / {money(trade.closeFee)} USDT</strong></div>
+                  <div className="position-kv"><span>总手续费</span><strong>{money(trade.fees)} USDT</strong></div>
+                  <div className="position-kv"><span>收益率（保证金）</span><strong className={trade.roiPct >= 0 ? 'positive' : 'negative'}>{pct(trade.roiPct)}</strong></div>
+                  <div className="position-kv"><span>名义收益率</span><strong className={trade.pnlOnNotionalPct >= 0 ? 'positive' : 'negative'}>{pct(trade.pnlOnNotionalPct)}</strong></div>
+                  <div className="position-kv"><span>盈亏比</span><strong>{trade.riskReward === null ? '—' : `${trade.riskReward.toFixed(2)} : 1`}</strong></div>
+                  <div className="position-kv"><span>权益前 / 权益后</span><strong>{money(trade.equityBefore)} → {money(trade.equityAfter)} USDT</strong></div>
+                  <div className="position-kv"><span>未实现盈亏 / 保证金率</span><strong>—（已平仓） / 未计</strong></div>
+                </div>
+              );
+            })() : calculation.trades.length ? (
+
               <div className="position-trade-table">
-                <div className="position-trade-head"><span>信号</span><span>开仓</span><span>平仓</span><span>退出</span><span>盈亏比</span><span>净盈亏</span><span>期末权益</span></div>
+                <div className="position-trade-head">
+                  <span>信号</span><span>方向/杠杆</span><span>开仓时间</span><span>平仓时间</span>
+                  <span>开仓价</span><span>平仓价</span><span>数量</span><span>名义</span>
+                  <span>手续费</span><span>净盈亏</span><span>收益率</span><span>强平价</span><span>期末权益</span>
+                </div>
                 {calculation.trades.map((trade) => (
                   <div className="position-trade-row" key={`${trade.index}-${trade.triggerAt}`}>
                     <span>#{trade.index + 1}</span>
+                    <span>{directionLabel(trade.direction)} {trade.leverage}x</span>
+                    <span>{formatDateTime(trade.entryAt)}</span>
+                    <span>{formatDateTime(trade.exitAt)}</span>
                     <span>{money(trade.entryPrice)}</span>
                     <span>{money(trade.exitPrice)}</span>
-                    <span>{trade.exitReason === 'target' ? '止盈' : trade.exitReason === 'stop' ? '止损' : trade.exitReason === 'liquidation' ? '强平' : trade.exitReason === 'no-data' ? '无K线' : '结束'}</span>
-                    <span>{trade.riskReward === null ? '—' : `${trade.riskReward.toFixed(2)}`}</span>
+                    <span>{formatNumber(trade.quantity, 6)}</span>
+                    <span>{money(trade.notional)}</span>
+                    <span>{money(trade.fees)}</span>
                     <span className={trade.netPnl >= 0 ? 'positive' : 'negative'}>{money(trade.netPnl)}</span>
+                    <span className={trade.roiPct >= 0 ? 'positive' : 'negative'}>{pct(trade.roiPct)}</span>
+                    <span>{money(trade.liquidationPrice)}</span>
                     <span>{money(trade.equityAfter)}</span>
                   </div>
                 ))}

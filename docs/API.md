@@ -203,7 +203,7 @@ curl -X POST http://127.0.0.1:8787/api/rules \
 - `target`/`stop` 的 `mode`：`none | price | percent | indicator`。`indicator` 可取信号周期上的任意价格类指标（价格/Bollinger 等），服务端按默认参数在触发 K 线计算，不依赖图表周期。
 - `price` 为绝对价格；`percent` 为相对开仓价的正百分比；`indicator` 的 `series` 必须是价格类指标，并取该信号条件快照里的值。
 - 默认单边手续费 0.05%、单边滑点 0.02%；手续费和滑点均参与净收益和盈亏比计算。
-- 批量按信号时间排序复利；所有选中信号都会计算。持仓时间重叠时会返回警告，说明这是逐笔理论复利、未模拟同时占用保证金；权益归零后的信号才会进入 `skipped`。每条交易计算开仓/平仓价、数量、名义仓位、退出原因、毛/净盈亏、手续费、收益率、盈亏比和估算强平价。
+- 批量按信号时间排序复利；所有选中信号都会计算。持仓时间重叠时会返回警告，说明这是逐笔理论复利、未模拟同时占用保证金；权益归零后的信号才会进入 `skipped`。每条交易返回 `symbol/direction/leverage/marginMode/entryAt/exitAt/durationMs/entryPrice/exitPrice/quantity/notional/initialMargin/maintenanceMargin/fundingFee/openFee/closeFee/fees/grossPnl/netPnl/roiPct/pnlOnNotionalPct/riskReward/liquidationPrice/equityBefore/equityAfter`；维持保证金和资金费返回 `null` 表示未建模。
 - 同一根 K 线同时触发止盈止损按止损优先；跳空按开盘价；未设置止盈止损时按区间最后收盘价；强平按逐仓保证金上限截断；未计资金费率、维持保证金和手续费等级差异。
 
 返回 `{ calculation: PositionCalculationResult }`。配置/信号序号不合法返回 400，回放或信号周期数据不存在返回 404/422。
