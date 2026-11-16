@@ -16,7 +16,7 @@ import { useAppData } from './context';
 import { DashboardPage } from './pages/DashboardPage';
 import { RulesPage } from './pages/RulesPage';
 import { RuleEditorPage } from './pages/RuleEditorPage';
-import { RuleReplayPage } from './pages/RuleReplayPage';
+const RuleReplayPage = lazy(() => import('./pages/RuleReplayPage').then((module) => ({ default: module.RuleReplayPage })));
 import { EventsPage } from './pages/EventsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -160,7 +160,7 @@ export function App() {
             <Route path="/rules" element={<RulesPage />} />
             <Route path="/rules/new" element={<RuleEditorPage />} />
             <Route path="/rules/:id/edit" element={<RuleEditorPage />} />
-            <Route path="/rules/:id/replay" element={<RuleReplayPage />} />
+            <Route path="/rules/:id/replay" element={<Suspense fallback={<div className="loading-block">正在加载历史回放…</div>}><RuleReplayPage /></Suspense>} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />

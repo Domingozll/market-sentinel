@@ -7,7 +7,7 @@ export interface ChartDataContext {
   symbol: string;
   timeframe: string;
   onError?: (error: unknown) => void;
-  onStatus?: (status: 'connecting' | 'live' | 'polling' | 'offline') => void;
+  onStatus?: (status: 'connecting' | 'live' | 'polling' | 'offline' | 'static') => void;
   onDataChange?: () => void;
 }
 
@@ -208,5 +208,51 @@ export class ChartDataLoader {
       window.clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+  }
+}
+
+
+/**
+ * Historical data loader used by the rule replay page. It never opens SSE or
+ * polls; `resetData()` on the chart asks it for the current snapshot again.
+ */
+export class StaticChartDataLoader {
+  private candles: Candle[];
+  private context: Pick<ChartDataContext, 'onDataChange' | 'onStatus'>;
+  private destroyed = false;
+
+  constructor(options: { candles: Candle[]; onDataChange?: () => void; onStatus?: ChartDataContext['onStatus'] }) {
+    this.candles = options.candles;
+    this.context = { onDataChange: options.onDataChange, onStatus: options.onStatus };
+  }
+
+  setCandles(candles: Candle[]): void {
+    this.candles = candles;
+  }
+
+  get loader(): DataLoader {
+    return {
+      getBars: ({ type, callback }) => {
+        if (this.destroyed) {
+          callback([], { forward: false, backward: false });
+          return;
+        }
+        if (type !== 'init') {
+          callback([], { forward: false, backward: false });
+          return;
+        }
+        callback(normalizeBars(this.candles), { forward: false, backward: false });
+        this.context.onDataChange?.();
+      },
+      subscribeBar: () => {
+        if (!this.destroyed) this.context.onStatus?.('static');
+      },
+      unsubscribeBar: () => undefined,
+    };
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    this.candles = [];
   }
 }

@@ -4,6 +4,7 @@ import { ArrowLeft, Copy, Loader2, PenLine, PlayCircle, RotateCcw, TriangleAlert
 import {
   COMPARATOR_LABEL,
   SERIES_CATALOG,
+  type Candle,
   type ConditionEvaluation,
   type RuleView,
   type TrialResult,
@@ -17,7 +18,8 @@ import {
   TRIGGER_MODE_TEXT,
 } from '../lib/format';
 import { ErrorBanner, LoadingBlock, PageHeader } from '../components/ui';
-import { MarketChart, type ChartMarker } from '../components/MarketChart';
+import { ReplayProChart } from '../components/chart/ReplayProChart';
+import type { ChartEventMarker } from '../lib/chart/types';
 
 const WINDOWS = [7, 14, 30] as const;
 
@@ -30,23 +32,6 @@ function conditionText(condition: ConditionEvaluation): string {
 
 function triggerModeText(trigger: TrialTrigger): string {
   return trigger.triggerMode === 'intrabar' ? '盘中触发（历史按收盘模拟）' : TRIGGER_MODE_TEXT[trigger.triggerMode];
-}
-
-function chartCandle(candle: TrialResult['candles'][number], result: TrialResult) {
-  return {
-    instId: result.symbol,
-    timeframe: result.timeframe,
-    openTime: candle.openTime,
-    open: candle.open,
-    high: candle.high,
-    low: candle.low,
-    close: candle.close,
-    volume: candle.volume,
-    vol: 0,
-    volCcy: 0,
-    volCcyQuote: candle.volume,
-    confirm: true,
-  };
 }
 
 export function RuleReplayPage() {
@@ -62,6 +47,8 @@ export function RuleReplayPage() {
   const [result, setResult] = useState<TrialResult | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
+  const [selectedTrigger, setSelectedTrigger] = useState<number | null>(null);
+  const [focusTimestamp, setFocusTimestamp] = useState<number | null>(null);
   const requestSeq = useRef(0);
 
   async function runReplay(targetRule: RuleView, targetSymbol: string, targetWindow: number) {
@@ -74,6 +61,8 @@ export function RuleReplayPage() {
       if (seq !== requestSeq.current) return;
       setResult(next);
       setWindowDays(next.windowDays);
+      setSelectedTrigger(null);
+      setFocusTimestamp(null);
       setStale(false);
     } catch (error) {
       if (seq !== requestSeq.current) return;
@@ -120,17 +109,37 @@ export function RuleReplayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const chartCandles = useMemo(
-    () => (result ? result.candles.map((candle) => chartCandle(candle, result)) : []),
-    [result],
-  );
-  const markers = useMemo<ChartMarker[]>(
-    () => result?.triggers.map((trigger, index) => ({
-      triggerAt: trigger.triggerAt,
-      price: trigger.price,
-      label: `#${index + 1}`,
+  const chartCandles = useMemo<Candle[]>(
+    () => result?.candles.map((candle) => ({
+      instId: result.symbol,
+      timeframe: result.timeframe,
+      openTime: candle.openTime,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+      vol: 0,
+      volCcy: 0,
+      volCcyQuote: candle.volume,
+      confirm: true,
     })) ?? [],
     [result],
+  );
+  const replayEvents = useMemo<ChartEventMarker[]>(
+    () => result && rule ? result.triggers.map((trigger, index) => ({
+      id: `replay-${index}`,
+      ruleId: rule.id,
+      ruleName: rule.name,
+      symbol: result.symbol,
+      triggerAt: trigger.triggerAt,
+      price: trigger.price,
+      triggerMode: trigger.triggerMode,
+      note: trigger.conditions.map((condition) => conditionText(condition)).join(' · '),
+      deliveryStatus: null,
+      label: result.triggers.length <= 40 ? `#${index + 1}` : '',
+    })) : [],
+    [result, rule],
   );
 
   function changeSymbol(next: string) {
@@ -288,18 +297,25 @@ export function RuleReplayPage() {
               <span className="replay-chart-badge"><span className="replay-chart-dot" /> 通知位置 {result.triggers.length}</span>
             </div>
             <div className="replay-chart-wrap" data-testid="replay-chart">
-              <MarketChart
-                candles={chartCandles}
+              <ReplayProChart
+                symbol={result.symbol}
                 timeframe={result.timeframe}
-                markers={markers}
-                markerLimit={500}
-                initialBars={Math.max(chartCandles.length, 120)}
-                height={390}
-                ariaLabel={`${rule.name} 历史 K 线回放`}
+                pricePrecision={2}
+                volumePrecision={0}
+                candles={chartCandles}
+                events={replayEvents}
+                focusTimestamp={focusTimestamp}
+                onEventSelect={(event) => {
+                  const index = Number(event.id.replace('replay-', ''));
+                  if (!Number.isFinite(index)) return;
+                  setSelectedTrigger(index);
+                  setFocusTimestamp(event.triggerAt);
+                  document.querySelector(`[data-replay-index="${index}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }}
               />
             </div>
             <div className="replay-chart-note">
-              图表覆盖本次回放窗口；{result.triggers.length <= 40 ? '橙色 #编号 标记与下方清单一一对应' : '橙色标记点对应下方清单，触发较多时仅显示标记点、不显示编号'}，可拖动或缩放图表查看细节。历史盘中 tick 无法完整还原，盘中规则按收盘确认口径模拟。
+              使用与「专业图表」相同的 KLineChart 工作台：支持指标、Volume Profile、画线、缩放、截图和全屏。图上橙色标记对应下方清单，触发较少时显示 #编号；点击清单行可在图中定位，触发较多时只显示标记点。历史盘中 tick 无法完整还原，盘中规则按收盘确认口径模拟。
             </div>
           </section>
 
@@ -321,7 +337,26 @@ export function RuleReplayPage() {
                   <span>#</span><span>通知时间</span><span>触发价</span><span>模式</span><span>条件快照</span>
                 </div>
                 {result.triggers.map((trigger, index) => (
-                  <div className="replay-row" data-testid="replay-row" key={`${trigger.triggerAt}-${index}`}>
+                  <div
+                    className={`replay-row${selectedTrigger === index ? ' selected' : ''}`}
+                    data-testid="replay-row"
+                    data-replay-index={index}
+                    key={`${trigger.triggerAt}-${index}`}
+                    role="button"
+                    tabIndex={0}
+                    title="在图中定位这条触发"
+                    onClick={() => {
+                      setSelectedTrigger(index);
+                      setFocusTimestamp(trigger.triggerAt);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedTrigger(index);
+                        setFocusTimestamp(trigger.triggerAt);
+                      }
+                    }}
+                  >
                     <div className="replay-index">#{index + 1}</div>
                     <div className="replay-when">
                       <strong>{formatDateTime(trigger.triggerAt)}</strong>

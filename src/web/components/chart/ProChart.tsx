@@ -13,7 +13,7 @@ import {
   type KLineData,
   type Styles,
 } from 'klinecharts';
-import { ChartDataLoader } from '../../lib/chart/dataLoader';
+import { ChartDataLoader, StaticChartDataLoader } from '../../lib/chart/dataLoader';
 import {
   registerChartIndicators,
   INDICATOR_NAMES,
@@ -37,7 +37,7 @@ import {
 } from '../../lib/chart/drawings';
 import { computeVolumeProfile, type VolumeProfileResult } from '../../lib/chart/volumeProfile';
 import { computeIndicatorLegend } from '../../lib/chart/indicatorReadout';
-import type { Timeframe } from '../../../shared/types';
+import type { Candle, Timeframe } from '../../../shared/types';
 import { TF_MS } from '../../../shared/types';
 import type {
   ChartEventMarker,
@@ -54,6 +54,7 @@ export interface ProChartHandle {
   startDrawing: (tool: DrawingTool) => void;
   clearDrawings: () => void;
   scrollToLatest: () => void;
+  scrollToTimestamp: (timestamp: number) => void;
   screenshot: () => string | null;
 }
 
@@ -72,7 +73,11 @@ export interface ProChartProps {
   onCrosshairChange: (readout: OhlcvReadout) => void;
   onIndicatorLegend: (items: IndicatorLegendItem[]) => void;
   onVisibleProfile: (profile: VolumeProfileResult) => void;
-  onChartStatus: (status: 'connecting' | 'live' | 'polling' | 'offline') => void;
+  onChartStatus: (status: 'connecting' | 'live' | 'polling' | 'offline' | 'static') => void;
+  /** When set, ProChart uses this snapshot instead of REST/SSE. */
+  staticCandles?: Candle[];
+  /** Maximum rule/replay markers created on the chart. */
+  eventMarkerLimit?: number;
   onError: (error: unknown) => void;
   onReady?: () => void;
 }
@@ -104,6 +109,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<Chart | null>(null);
   const loaderRef = useRef<ChartDataLoader | null>(null);
+  const staticLoaderRef = useRef<StaticChartDataLoader | null>(null);
   const [ready, setReady] = useState(false);
   const lastLegendIndexRef = useRef<number | null>(null);
   const propsRef = useRef(props);
@@ -170,28 +176,46 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
     });
     if (!chart) return;
     chartRef.current = chart;
-    const loader = new ChartDataLoader({
-      symbol: propsRef.current.symbol,
-      timeframe: propsRef.current.timeframe,
-      onError: (error) => propsRef.current.onError(error),
-      onStatus: (status) => propsRef.current.onChartStatus(status),
-      onDataChange: () => {
-        const current = chartRef.current;
-        if (!current) return;
-        const last = current.getDataList().at(-1);
-        if (last) propsRef.current.onCrosshairChange(toReadout(last));
-        publishLegend(current);
-        scheduleRefresh(current);
-      },
-    });
-    loaderRef.current = loader;
-    chart.setSymbol({
-      ticker: propsRef.current.symbol,
-      pricePrecision: propsRef.current.pricePrecision,
-      volumePrecision: propsRef.current.volumePrecision,
-    });
-    chart.setPeriod(toKLinePeriod(propsRef.current.timeframe));
-    chart.setDataLoader(loader.loader);
+    const onDataChange = (): void => {
+      const current = chartRef.current;
+      if (!current) return;
+      const last = current.getDataList().at(-1);
+      if (last) propsRef.current.onCrosshairChange(toReadout(last));
+      publishLegend(current);
+      scheduleRefresh(current);
+    };
+    const staticCandles = propsRef.current.staticCandles;
+    if (staticCandles) {
+      const loader = new StaticChartDataLoader({
+        candles: staticCandles,
+        onDataChange,
+        onStatus: (status) => propsRef.current.onChartStatus(status),
+      });
+      staticLoaderRef.current = loader;
+      chart.setSymbol({
+        ticker: propsRef.current.symbol,
+        pricePrecision: propsRef.current.pricePrecision,
+        volumePrecision: propsRef.current.volumePrecision,
+      });
+      chart.setPeriod(toKLinePeriod(propsRef.current.timeframe));
+      chart.setDataLoader(loader.loader);
+    } else {
+      const loader = new ChartDataLoader({
+        symbol: propsRef.current.symbol,
+        timeframe: propsRef.current.timeframe,
+        onError: (error) => propsRef.current.onError(error),
+        onStatus: (status) => propsRef.current.onChartStatus(status),
+        onDataChange,
+      });
+      loaderRef.current = loader;
+      chart.setSymbol({
+        ticker: propsRef.current.symbol,
+        pricePrecision: propsRef.current.pricePrecision,
+        volumePrecision: propsRef.current.volumePrecision,
+      });
+      chart.setPeriod(toKLinePeriod(propsRef.current.timeframe));
+      chart.setDataLoader(loader.loader);
+    }
 
     const onVisibleRangeChange = (_range?: unknown): void => {
       scheduleRefresh(chart);
@@ -237,19 +261,33 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
       chart.unsubscribeAction('onVisibleRangeChange', onVisibleRangeChange);
       chart.unsubscribeAction('onCrosshairChange', onCrosshairChange);
       chart.unsubscribeAction('onCandleBarClick', onCandleBarClick);
-      loader.destroy();
+      loaderRef.current?.destroy();
       loaderRef.current = null;
+      staticLoaderRef.current?.destroy();
+      staticLoaderRef.current = null;
       dispose(container);
       chartRef.current = null;
       setReady(false);
     };
   }, []);
 
-  // Update data loader context first, then reset symbol/period.
+  // Update the live loader context, or refresh the static replay snapshot.
   useEffect(() => {
     const chart = chartRef.current;
+    if (!chart) return;
+    if (props.staticCandles) {
+      chart.setSymbol({
+        ticker: props.symbol,
+        pricePrecision: props.pricePrecision,
+        volumePrecision: props.volumePrecision,
+      });
+      chart.setPeriod(toKLinePeriod(props.timeframe));
+      staticLoaderRef.current?.setCandles(props.staticCandles);
+      chart.resetData();
+      return;
+    }
     const loader = loaderRef.current;
-    if (!chart || !loader) return;
+    if (!loader) return;
     loader.updateContext({
       symbol: props.symbol,
       timeframe: props.timeframe,
@@ -268,7 +306,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
       volumePrecision: props.volumePrecision,
     });
     chart.setPeriod(toKLinePeriod(props.timeframe));
-  }, [props.symbol, props.timeframe, props.pricePrecision, props.volumePrecision]);
+  }, [props.symbol, props.timeframe, props.pricePrecision, props.volumePrecision, props.staticCandles]);
 
   // Recreate only project indicators. Never remove built-in/candle series.
   useEffect(() => {
@@ -350,7 +388,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
     const chart = chartRef.current;
     if (!chart || !ready) return;
     chart.removeOverlay({ groupId: EVENT_GROUP });
-    for (const event of props.events.slice(0, 120)) {
+    for (const event of props.events.slice(0, props.eventMarkerLimit ?? 120)) {
       chart.createOverlay({
         name: EVENT_MARKER_OVERLAY,
         paneId: 'candle_pane',
@@ -361,7 +399,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
         onClick: () => propsRef.current.onEventSelect(event),
       });
     }
-  }, [ready, props.events, props.symbol, props.timeframe]);
+  }, [ready, props.events, props.eventMarkerLimit, props.symbol, props.timeframe]);
 
   // Restore drawings for the current symbol/timeframe. Do not persist the restore itself.
   useEffect(() => {
@@ -425,6 +463,7 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
       propsRef.current.onDrawingsChange([]);
     },
     scrollToLatest: () => chartRef.current?.scrollToRealTime(200),
+    scrollToTimestamp: (timestamp) => chartRef.current?.scrollToTimestamp(timestamp, 250),
     screenshot: () => chartRef.current?.getConvertPictureUrl(true, 'png', '#080d13') ?? null,
   }), [ready]);
 

@@ -103,11 +103,12 @@ function markerFromEvent(event: {
   };
 }
 
-function statusLabel(status: 'connecting' | 'live' | 'polling' | 'offline'): string {
+function statusLabel(status: 'connecting' | 'live' | 'polling' | 'offline' | 'static'): string {
   switch (status) {
     case 'live': return '实时连接';
     case 'polling': return '轮询模式';
     case 'connecting': return '连接中';
+    case 'static': return '历史数据';
     default: return '已断开';
   }
 }
@@ -133,7 +134,7 @@ export function ChartPage() {
   const [readout, setReadout] = useState({ timestamp: null as number | null, open: null as number | null, high: null as number | null, low: null as number | null, close: null as number | null, volume: null as number | null });
   const [profile, setProfile] = useState<VolumeProfileResult | null>(null);
   const [legendItems, setLegendItems] = useState<IndicatorLegendItem[]>([]);
-  const [chartStatus, setChartStatus] = useState<'connecting' | 'live' | 'polling' | 'offline'>('connecting');
+  const [chartStatus, setChartStatus] = useState<'connecting' | 'live' | 'polling' | 'offline' | 'static'>('connecting');
   const [chartError, setChartError] = useState<string | null>(null);
   const [panel, setPanel] = useState<'indicator' | 'volume' | null>(null);
   const [drawingOpen, setDrawingOpen] = useState(false);

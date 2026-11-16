@@ -32,18 +32,20 @@ export function registerEventMarkerOverlay(): void {
           attrs: { x: point.x, y: point.y, r: 3.5 },
           styles: { style: 'fill', color },
         },
-        {
+      ];
+      if (marker?.label !== '') {
+        figures.push({
           type: 'text',
           attrs: {
             x: point.x + 5,
             y: point.y - 10,
-            text: marker?.triggerMode === 'intrabar' ? '盘中' : '触发',
+            text: marker?.label ?? (marker?.triggerMode === 'intrabar' ? '盘中' : '触发'),
             baseline: 'middle',
           },
           styles: { color, size: 9, backgroundColor: '#080d13', paddingLeft: 4, paddingRight: 4 },
           ignoreEvent: true,
-        },
-      ];
+        });
+      }
       return figures;
     },
   });

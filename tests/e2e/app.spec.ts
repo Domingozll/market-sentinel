@@ -105,15 +105,21 @@ test.describe.serial('Market Sentinel system flow', () => {
     await page.getByTestId('rule-history').first().click();
     await expect(page.getByText('历史 K 线与通知位置')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('replay-chart').locator('canvas')).toBeVisible();
+    await expect(page.getByTestId('replay-chart').locator('canvas').first()).toBeVisible();
     await expect(page.getByTestId('replay-list')).toBeVisible();
     const rows = page.getByTestId('replay-row');
     if (await rows.count()) {
       await expect(rows.first()).toContainText('#1');
       await expect(rows.first()).toContainText('收盘确认');
+      await rows.first().click();
+      await expect(rows.first()).toHaveClass(/selected/);
     } else {
       await expect(page.getByTestId('replay-list')).toContainText('窗口内没有触发');
     }
+    await page.getByTestId('replay-window-30').click();
+    await page.getByTestId('run-replay').click();
+    await expect(page.locator('.trial-metric').filter({ hasText: '回看窗口' })).toContainText('30', { timeout: 20_000 });
+    await expect(page.getByTestId('replay-chart').locator('canvas').first()).toBeVisible();
   });
 
   test('chart indicators can be enabled, configured, hidden and persisted', async ({ page }) => {

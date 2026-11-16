@@ -121,6 +121,8 @@ export interface ChartEventMarker {
   triggerMode: 'close' | 'intrabar';
   note: string;
   deliveryStatus: string | null;
+  /** Optional short label for replay markers (#1, #2, ...). */
+  label?: string;
 }
 
 export interface OhlcvReadout {
