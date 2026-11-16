@@ -95,6 +95,7 @@ export function RuleEditorPage() {
   const [loading, setLoading] = useState(isEdit);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savedEnabled, setSavedEnabled] = useState<boolean | null>(null);
   const [saveErrors, setSaveErrors] = useState<string[]>([]);
   const [preview, setPreview] = useState<{
     summary: string;
@@ -122,6 +123,7 @@ export function RuleEditorPage() {
     if (!id) {
       const next = initialDraft(templateKey);
       setDraft(next);
+      setSavedEnabled(null);
       setLoading(false);
       setLoadError(null);
       setTrialSymbol(next.symbols[0] ?? '');
@@ -147,6 +149,7 @@ export function RuleEditorPage() {
           enabled: rule.enabled,
         };
         setDraft(next);
+        setSavedEnabled(rule.enabled);
         setTrialSymbol(next.symbols[0] ?? '');
         setLoadError(null);
       })
@@ -266,7 +269,7 @@ export function RuleEditorPage() {
     }
   }
 
-  async function saveClosed() {
+  async function saveKeepingStatus() {
     const errors: string[] = [];
     if (draft.name.trim().length < 2 || draft.name.trim().length > 40) errors.push('规则名称需为 2–40 个字符');
     if (!draft.symbols.length) errors.push('至少选择一个交易品种');
@@ -278,18 +281,21 @@ export function RuleEditorPage() {
     }
     setSaving(true);
     setSaveErrors([]);
+    const preservedEnabled = isEdit ? (savedEnabled ?? draft.enabled) : draft.enabled;
     try {
-      const payload = { ...toPayload(draft), enabled: false };
+      const payload = { ...toPayload(draft), enabled: preservedEnabled };
       if (isEdit && id) {
         await api.updateRule(id, payload);
-        setDraft((previous) => ({ ...previous, enabled: false }));
+        setDraft((previous) => ({ ...previous, enabled: preservedEnabled }));
+        setSavedEnabled(preservedEnabled);
         await refresh();
-        showToast('规则已保存，保持关闭状态。', 'success');
+        showToast(preservedEnabled ? '规则已保存，监控状态保持不变（继续运行）。' : '规则已保存，监控状态保持不变（保持关闭）。', 'success');
       } else {
         const { rule } = await api.createRule(payload);
-        setDraft((previous) => ({ ...previous, enabled: false }));
+        setDraft((previous) => ({ ...previous, enabled: preservedEnabled }));
+        setSavedEnabled(preservedEnabled);
         await refresh();
-        showToast('规则已保存，保持关闭状态。', 'success');
+        showToast(preservedEnabled ? '规则已保存并保持启用。' : '规则已保存并保持关闭。', 'success');
         navigate(`/rules/${rule.id}/edit`, { replace: true });
       }
     } catch (error) {
@@ -397,9 +403,9 @@ export function RuleEditorPage() {
           <button type="button" className="btn btn-secondary" onClick={() => void openTrial()}>
             <PlayCircle size={14} /> 试跑
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => void saveClosed()} disabled={saving} data-testid="save-rule-closed">
+          <button type="button" className="btn btn-ghost" onClick={() => void saveKeepingStatus()} disabled={saving} data-testid="save-rule-keep-status">
             {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
-            仅保存（关闭）
+            仅保存（保持状态）
           </button>
           <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={saving} data-testid="save-rule-top">
             {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
@@ -503,7 +509,7 @@ export function RuleEditorPage() {
               />
               保存后立即启用监控
             </label>
-            <span className="form-hint">当前条件已满足时不会补发历史信号</span>
+            <span className="form-hint">主保存按钮使用此状态；“仅保存（保持状态）”不会改变当前规则的启用状态。</span>
           </div>
         </div>
         {draft.triggerMode === 'intrabar' ? (

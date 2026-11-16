@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Rule editor: a separate “save closed” action that persists a disabled rule and stays on the editor; long rule names now truncate cleanly while list action buttons stay on one row.
+- Rule editor: a separate “save keeping status” action that stays on the editor and preserves whether the rule is enabled or disabled; long rule names truncate cleanly while list action buttons stay on one row.
 - Custom historical replay periods: inclusive date ranges plus daily time windows (with timezone, all-day and overnight support), presets/defaults, and an async job pipeline.
 - Batched OKX history paging (100 bars/request, 130ms request gate) with local SQLite persistence; async jobs expose phase, conservative ETA and reload recovery. Strict custom ranges reject gaps except a late current candle.
 - Position calculator on replay signals: single-point and batch compounding, configurable capital/direction/leverage, price/percent/indicator take-profit and stop-loss, fees, slippage, risk/reward, liquidation estimate and overlap-safe sequencing.
@@ -45,12 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-11-09
 
 ### Added
-
-- Rule editor: a separate “save closed” action that persists a disabled rule and stays on the editor; long rule names now truncate cleanly while list action buttons stay on one row.
-- Custom historical replay periods: inclusive date ranges plus daily time windows (with timezone, all-day and overnight support), presets/defaults, and an async job pipeline.
-- Batched OKX history paging (100 bars/request, 130ms request gate) with local SQLite persistence; async jobs expose phase, conservative ETA and reload recovery. Strict custom ranges reject gaps except a late current candle.
-- Position calculator on replay signals: single-point and batch compounding, configurable capital/direction/leverage, price/percent/indicator take-profit and stop-loss, fees, slippage, risk/reward, liquidation estimate and overlap-safe sequencing.
-- Chart marker/row selection integration for position calculations, including desktop and mobile layouts.
 
 - Local-first OKX spot/USDT perpetual market monitor using public REST + WebSocket.
 - Indicators: Bollinger Bands, KDJ, RSI (Wilder), MACD, volume, average volume and volume ratio.

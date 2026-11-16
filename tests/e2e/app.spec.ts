@@ -433,12 +433,13 @@ test.describe.serial('Market Sentinel system flow', () => {
     await expect(page.getByTestId('skip-us-non-trading-days')).toBeChecked();
   });
 
-  test('save closed stays on the editor and long names keep actions in one row', async ({ page, request }) => {
+  test('save keeping status stays on the editor and long names keep actions in one row', async ({ page, request }) => {
     const longName = '长名称规则用于验证按钮不会换行和溢出-ABCDEFGHIJKLMNOP';
     await page.goto('/rules/new', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: '新建规则' })).toBeVisible();
     await page.getByTestId('rule-name').fill(longName);
-    await page.getByTestId('save-rule-closed').click();
+    await page.getByTestId('rule-enabled').uncheck();
+    await page.getByTestId('save-rule-keep-status').click();
     await expect(page).toHaveURL(/\/rules\/[^/]+\/edit$/);
     await expect(page.getByRole('heading', { name: '编辑规则' })).toBeVisible();
     await expect(page.getByTestId('rule-enabled')).not.toBeChecked();
@@ -448,6 +449,36 @@ test.describe.serial('Market Sentinel system flow', () => {
     const fetched = await request.get(`/api/rules/${ruleId}`);
     expect(fetched.ok()).toBeTruthy();
     expect((await fetched.json()).rule.enabled).toBe(false);
+
+    // A second keep-status save on the edit page must not toggle the rule on.
+    await page.getByTestId('save-rule-keep-status').click();
+    await expect(page).toHaveURL(/\/rules\/[^/]+\/edit$/);
+    const fetchedAgain = await request.get(`/api/rules/${ruleId}`);
+    expect((await fetchedAgain.json()).rule.enabled).toBe(false);
+
+    // Creating an enabled rule and saving from its edit page must keep it enabled.
+    const expression = {
+      kind: 'group',
+      op: 'AND',
+      children: [{
+        kind: 'condition',
+        id: 'keep-on',
+        timeframe: '5m',
+        left: { series: 'price.close' },
+        cmp: 'gte',
+        right: { type: 'number', value: 0 },
+      }],
+    };
+    const created = await request.post('/api/rules', {
+      data: { name: '保持启用的规则', symbols: ['BTC-USDT-SWAP'], triggerMode: 'close', cooldownSec: 0, enabled: true, expression },
+    });
+    expect(created.ok()).toBeTruthy();
+    const enabledId = (await created.json()).rule.id as string;
+    await page.goto(`/rules/${enabledId}/edit`, { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('save-rule-keep-status').click();
+    await expect(page).toHaveURL(new RegExp(`/rules/${enabledId}/edit$`));
+    const enabledFetched = await request.get(`/api/rules/${enabledId}`);
+    expect((await enabledFetched.json()).rule.enabled).toBe(true);
 
     await page.goto('/rules', { waitUntil: 'domcontentloaded' });
     const row = page.locator('.rule-list-grid').filter({ hasText: longName }).first();
