@@ -70,6 +70,8 @@ export interface ProChartProps {
   onDrawingsChange: (drawings: SerializedOverlay[]) => void;
   onDrawingDone?: () => void;
   onEventSelect: (event: ChartEventMarker) => void;
+  onEventHover?: (event: ChartEventMarker, position: { x: number; y: number }) => void;
+  onEventLeave?: () => void;
   onCrosshairChange: (readout: OhlcvReadout) => void;
   onIndicatorLegend: (items: IndicatorLegendItem[]) => void;
   onVisibleProfile: (profile: VolumeProfileResult) => void;
@@ -397,6 +399,13 @@ export const ProChart = forwardRef<ProChartHandle, ProChartProps>(function ProCh
         points: [{ timestamp: event.triggerAt, value: event.price }],
         extendData: event,
         onClick: () => propsRef.current.onEventSelect(event),
+        onMouseEnter: (event) => {
+          propsRef.current.onEventHover?.(
+            event.overlay.extendData as ChartEventMarker,
+            { x: event.x ?? 0, y: event.y ?? 0 },
+          );
+        },
+        onMouseLeave: () => propsRef.current.onEventLeave?.(),
       });
     }
   }, [ready, props.events, props.eventMarkerLimit, props.symbol, props.timeframe]);

@@ -88,7 +88,9 @@ export function ReplayProChart({
   const [drawingOpen, setDrawingOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<DrawingTool | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [hovered, setHovered] = useState<{ event: ChartEventMarker; x: number; y: number } | null>(null);
   const chartRef = useRef<ProChartHandle | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
@@ -268,7 +270,7 @@ export function ReplayProChart({
         <VolumeProfilePanel settings={workspace.volumeProfile} onChange={updateVolumeProfile} onClose={() => setPanel(null)} />
       ) : null}
 
-      <div className="chart-stage replay-chart-stage" data-testid="replay-pro-stage">
+      <div ref={stageRef} className="chart-stage replay-chart-stage" data-testid="replay-pro-stage">
         <ProChart
           ref={chartRef}
           symbol={symbol}
@@ -283,7 +285,12 @@ export function ReplayProChart({
           staticCandles={candles}
           onDrawingsChange={updateDrawings}
           onDrawingDone={() => setActiveTool(null)}
-          onEventSelect={(event) => onEventSelect?.(event)}
+          onEventSelect={(event) => {
+            setHovered(null);
+            onEventSelect?.(event);
+          }}
+          onEventHover={(event, position) => setHovered({ event, x: position.x, y: position.y })}
+          onEventLeave={() => setHovered(null)}
           onCrosshairChange={setReadout}
           onIndicatorLegend={setLegendItems}
           onVisibleProfile={setProfile}
@@ -336,6 +343,39 @@ export function ReplayProChart({
           </div>
         </div>
         {chartError ? <div className="chart-error-toast" role="alert">{chartError}</div> : null}
+        {hovered ? (
+          <div
+            className="replay-signal-tooltip"
+            data-testid="replay-signal-tooltip"
+            style={(() => {
+              const stageWidth = stageRef.current?.clientWidth ?? 800;
+              const stageHeight = stageRef.current?.clientHeight ?? 520;
+              const stageTop = stageRef.current?.getBoundingClientRect().top ?? 0;
+              const tooltipHeight = 176;
+              let top = hovered.y + 14;
+              if (stageTop + top + tooltipHeight > window.innerHeight - 12) {
+                top = hovered.y - tooltipHeight - 14;
+              }
+              return {
+                left: Math.max(8, Math.min(hovered.x + 14, stageWidth - 292)),
+                top: Math.max(8, Math.min(top, stageHeight - tooltipHeight - 8)),
+              };
+            })()}
+          >
+            <div className="rst-head">
+              <span className="rst-badge">{hovered.event.label || (hovered.event.triggerMode === 'intrabar' ? '盘中信号' : '通知信号')}</span>
+              <span className="rst-mode">{hovered.event.triggerMode === 'intrabar' ? '盘中触发' : '收盘确认'}</span>
+            </div>
+            <div className="rst-rule">{hovered.event.ruleName}</div>
+            <div className="rst-grid">
+              <span>时间</span><b>{formatDateTime(hovered.event.triggerAt, false, false)}</b>
+              <span>触发价</span><b>{formatPrice(hovered.event.price)}</b>
+              <span>品种</span><b>{hovered.event.symbol}</b>
+            </div>
+            {hovered.event.note ? <div className="rst-note">{hovered.event.note}</div> : null}
+            <div className="rst-foot">历史模拟信号 · 点击标记定位下方清单</div>
+          </div>
+        ) : null}
       </div>
       <div className="chart-statusbar">
         <span className={`chart-live-dot ${chartStatus}`} />

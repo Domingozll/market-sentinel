@@ -491,3 +491,18 @@ h1,h2,h3,p{margin-top:0}
 @media (max-width:700px){
   .replay-control-grid{grid-template-columns:1fr}
 }
+
+/* Replay signal marker hover details */
+.replay-signal-tooltip{position:absolute;z-index:46;width:284px;max-width:calc(100% - 16px);border:1px solid rgba(255,77,141,.4);border-radius:8px;background:rgba(13,10,17,.97);box-shadow:0 14px 38px rgba(0,0,0,.55),0 0 0 1px rgba(255,77,141,.08) inset;padding:10px 11px;pointer-events:none;backdrop-filter:blur(12px)}
+.rst-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.rst-badge{display:inline-flex;align-items:center;border-radius:4px;background:#ff4d8d;color:#17070d;font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 6px;letter-spacing:.02em}
+.rst-mode{color:#c6a5b0;font-size:8.5px;font-family:var(--mono)}
+.rst-rule{color:#f5dce5;font-size:10.5px;font-weight:600;line-height:1.45;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rst-grid{display:grid;grid-template-columns:38px 1fr;gap:3px 8px;color:#856d78;font-family:var(--mono);font-size:8.3px}
+.rst-grid b{color:#d9c1cb;text-align:right;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rst-note{margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,77,141,.16);color:#b795a2;font-family:var(--mono);font-size:8px;line-height:1.55;max-height:72px;overflow:hidden;white-space:pre-wrap}
+.rst-foot{margin-top:7px;color:#755c67;font-family:var(--mono);font-size:7.5px}
+@media (max-width:900px){
+  .replay-signal-tooltip{width:248px;padding:8px 9px}
+  .rst-foot{display:none}
+}
