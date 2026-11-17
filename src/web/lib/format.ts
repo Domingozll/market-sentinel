@@ -172,6 +172,8 @@ export function seriesParamsLabel(series: SeriesKey, params?: IndicatorParams): 
       return `${p.fast ?? 12}, ${p.slow ?? 26}, ${p.signal ?? 9}`;
     case 'volume':
       return `${p.maLength ?? 20}`;
+    case 'bbTurn':
+      return `${p.length ?? 20}, 减速${p.mDec ?? 12}, z${p.zOn ?? 1}, ${p.zWindow ?? 200}`;
     default:
       return '';
   }

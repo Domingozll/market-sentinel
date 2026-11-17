@@ -88,11 +88,15 @@ export const SERIES_KEYS = [
   'volume.quote',
   'volume.ma',
   'volume.ratio',
+  'bbTurn.warnTop',
+  'bbTurn.warnBottom',
+  'bbTurn.confirmTop',
+  'bbTurn.confirmBottom',
 ] as const;
 export type SeriesKey = (typeof SERIES_KEYS)[number];
 
-export type SeriesUnit = 'price' | 'percent' | 'points' | 'momentum' | 'volume' | 'ratio' | 'percentPerBar';
-export type SeriesGroup = 'price' | 'bb' | 'kdj' | 'rsi' | 'macd' | 'volume';
+export type SeriesUnit = 'price' | 'percent' | 'points' | 'momentum' | 'volume' | 'ratio' | 'percentPerBar' | 'signal';
+export type SeriesGroup = 'price' | 'bb' | 'bbTurn' | 'kdj' | 'rsi' | 'macd' | 'volume';
 
 export interface SeriesMeta {
   key: SeriesKey;
@@ -101,7 +105,7 @@ export interface SeriesMeta {
   groupLabel: string;
   unit: SeriesUnit;
   description: string;
-  paramsKind?: 'bb' | 'kdj' | 'rsi' | 'macd' | 'volume';
+  paramsKind?: 'bb' | 'bbTurn' | 'kdj' | 'rsi' | 'macd' | 'volume';
 }
 
 export const SERIES_CATALOG: Record<SeriesKey, SeriesMeta> = {
@@ -125,11 +129,16 @@ export const SERIES_CATALOG: Record<SeriesKey, SeriesMeta> = {
   'volume.quote': { key: 'volume.quote', label: '成交量', group: 'volume', groupLabel: '成交量', unit: 'volume', description: '报价货币成交额（OKX volCcyQuote）' },
   'volume.ma': { key: 'volume.ma', label: '成交量均线', group: 'volume', groupLabel: '成交量', unit: 'volume', description: '成交量的简单移动平均', paramsKind: 'volume' },
   'volume.ratio': { key: 'volume.ratio', label: '量能倍数', group: 'volume', groupLabel: '成交量', unit: 'ratio', description: '当前成交量 / 成交量 SMA(N)', paramsKind: 'volume' },
+  'bbTurn.warnTop': { key: 'bbTurn.warnTop', label: '中线见顶预警', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '预测布林中线在未来若干根内见顶；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
+  'bbTurn.warnBottom': { key: 'bbTurn.warnBottom', label: '中线见底预警', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '预测布林中线在未来若干根内见底；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
+  'bbTurn.confirmTop': { key: 'bbTurn.confirmTop', label: '中线见顶确认', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '布林中线斜率已向下穿过死区；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
+  'bbTurn.confirmBottom': { key: 'bbTurn.confirmBottom', label: '中线见底确认', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '布林中线斜率已向上穿过死区；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
 };
 
 export const SERIES_GROUPS: { key: SeriesGroup; label: string; series: SeriesKey[] }[] = [
   { key: 'price', label: '价格', series: ['price.open', 'price.high', 'price.low', 'price.close'] },
   { key: 'bb', label: '布林带', series: ['bb.upper', 'bb.middle', 'bb.lower', 'bb.bandwidth', 'bb.percentB', 'bb.midSlope'] },
+  { key: 'bbTurn', label: '布林中线拐点', series: ['bbTurn.warnTop', 'bbTurn.warnBottom', 'bbTurn.confirmTop', 'bbTurn.confirmBottom'] },
   { key: 'kdj', label: 'KDJ', series: ['kdj.k', 'kdj.d', 'kdj.j'] },
   { key: 'rsi', label: 'RSI', series: ['rsi.rsi'] },
   { key: 'macd', label: 'MACD', series: ['macd.dif', 'macd.dea', 'macd.hist'] },
@@ -146,6 +155,9 @@ export interface IndicatorParams {
   slow?: number;
   signal?: number;
   maLength?: number;
+  mDec?: number;
+  zOn?: number;
+  zWindow?: number;
 }
 
 export const DEFAULT_PARAMS = {
@@ -154,6 +166,7 @@ export const DEFAULT_PARAMS = {
   rsi: { length: 14 },
   macd: { fast: 12, slow: 26, signal: 9 },
   volume: { maLength: 20 },
+  bbTurn: { length: 20, mDec: 12, zOn: 1.0, zWindow: 200 },
 } as const;
 
 export function defaultParamsFor(series: SeriesKey): IndicatorParams {

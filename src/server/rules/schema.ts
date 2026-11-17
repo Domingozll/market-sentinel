@@ -41,6 +41,9 @@ const DEFAULT_PARAM_RANGES: Record<string, [number, number, boolean]> = {
   slow: [2, 200, true],
   signal: [2, 100, true],
   maLength: [1, 500, true],
+  mDec: [2, 60, true],
+  zOn: [0.1, 10, false],
+  zWindow: [120, 500, true],
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -301,7 +304,20 @@ export function parseRuleInput(raw: unknown): ParseResult {
     note,
     skipUsNonTradingDays: skipUsNonTradingDays === true,
   };
-  return { ok: true, value: { draft, warnings: collectWarnings(expression, errors) } };
+  const warnings = collectWarnings(expression, errors);
+  if (draft.triggerMode === 'intrabar') {
+    const usesTurn = flattenConditions(expression).some((condition) =>
+      condition.left.series.startsWith('bbTurn.')
+      || (condition.right.type === 'series' && condition.right.series.startsWith('bbTurn.')),
+    );
+    if (usesTurn) {
+      warnings.push({
+        code: 'bbturn.intrabar',
+        message: '布林中线拐点只使用已收盘 K 线；盘中模式不会在形成中的 K 线上产生该信号',
+      });
+    }
+  }
+  return { ok: true, value: { draft, warnings } };
 }
 
 export function flattenConditions(node: ExpressionNode): Condition[] {

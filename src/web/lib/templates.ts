@@ -161,6 +161,7 @@ export function newGroup(): ConditionGroup {
 }
 
 export function defaultThresholdFor(series: SeriesKey): number {
+  if (series.startsWith('bbTurn.')) return 1;
   if (series === 'kdj.j' || series === 'kdj.k') return 90;
   if (series === 'rsi.rsi') return 30;
   if (series === 'volume.ratio') return 1.5;

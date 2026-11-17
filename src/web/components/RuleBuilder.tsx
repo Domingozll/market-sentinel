@@ -294,9 +294,11 @@ function ConditionEditor({
     ? normalizeParams(condition.right.series, condition.right.params)
     : null;
   const updateLeftSeries = (series: SeriesKey) => {
+    const isTurnSignal = series.startsWith('bbTurn.');
     onChange({
       ...condition,
       left: { series, params: defaultParamsFor(series) },
+      ...(isTurnSignal ? { cmp: 'gte' as const, right: { type: 'number' as const, value: 1 } } : {}),
     });
   };
   const updateRightType = (type: 'number' | 'series') => {
@@ -370,7 +372,7 @@ function ConditionEditor({
           aria-label={`条件 ${ordinal} 右侧类型`}
         >
           <option value="number">固定数值</option>
-          <option value="series">指标值</option>
+          <option value="series" disabled={condition.left.series.startsWith('bbTurn.')}>指标值</option>
         </select>
         {condition.right.type === 'number' ? (
           <FixedValueInput
@@ -396,6 +398,9 @@ function ConditionEditor({
       </div>
       <div className="param-fields">
         <span className="form-hint">{SERIES_CATALOG[condition.left.series].label}{seriesParamsLabel(condition.left.series, condition.left.params) ? `(${seriesParamsLabel(condition.left.series, condition.left.params)})` : ''}</span>
+        {condition.left.series.startsWith('bbTurn.') ? (
+          <span className="form-hint" style={{ color: '#8fbfae' }}>信号指标：1 = 本根触发，0 = 未触发；建议比较 ≥ 1</span>
+        ) : null}
         {SERIES_CATALOG[condition.left.series].paramsKind ? (
           <ParamInputs
             series={condition.left.series}
@@ -469,6 +474,14 @@ function ParamInputs({
         </>
       )}
       {kind === 'volume' && field('maLength', '均量周期', 1, 500)}
+      {kind === 'bbTurn' && (
+        <>
+          {field('length', '中线周期', 2, 200)}
+          {field('mDec', '减速窗口', 2, 60)}
+          {field('zOn', '触发门槛', 0.1, 10, false)}
+          {field('zWindow', '标准化窗口', 120, 500)}
+        </>
+      )}
     </>
   );
 }

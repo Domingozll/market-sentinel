@@ -146,6 +146,26 @@ Market Sentinel 的 HTTP API 与 Web UI 使用同一套 Fastify 路由。默认�
 
 单个规则详情。
 
+### 布林中线拐点条件
+
+规则条件可以使用独立的布林中线拐点序列：
+
+- `bbTurn.warnTop` / `bbTurn.warnBottom`：预测中线见顶 / 见底，`1` 表示本根触发。
+- `bbTurn.confirmTop` / `bbTurn.confirmBottom`：中线斜率已向下 / 向上穿过死区，`1` 表示本根触发。
+
+参数：`length`（中线周期，默认 20）、`mDec`（减速窗口，默认 12）、`zOn`（触发门槛，默认 1.0）、`zWindow`（标准化窗口，默认 200）。只使用已收盘 K 线；典型条件为 `bbTurn.warnTop >= 1`。
+
+```json
+{
+  "timeframe": "15m",
+  "left": { "series": "bbTurn.warnTop", "params": { "length": 20, "mDec": 12, "zOn": 1, "zWindow": 200 } },
+  "cmp": "gte",
+  "right": { "type": "number", "value": 1 }
+}
+```
+
+该指标预测的是布林中线拐点，不是价格方向；不会自动下单。
+
 ### `POST /api/rules`
 
 创建规则，成功返回 `201`。

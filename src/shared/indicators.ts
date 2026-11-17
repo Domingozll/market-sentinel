@@ -3,6 +3,7 @@ import {
   type SeriesKey,
   normalizeParams,
 } from '../shared/types';
+import { computeBbTurnSignals, type BbTurnSignals } from './bbTurn';
 
 export interface Ohlcv {
   open: number;
@@ -11,6 +12,8 @@ export interface Ohlcv {
   close: number;
   /** Quote-currency turnover (OKX volCcyQuote). */
   volume: number;
+  /** Undefined for chart-only data; false means the still-forming bar. */
+  confirm?: boolean;
 }
 
 export type Series = (number | null)[];
@@ -232,6 +235,23 @@ export function volumeRatio(candles: Ohlcv[], config: IndicatorParams): Series {
   });
 }
 
+const bbTurnCache = new WeakMap<readonly Ohlcv[], Map<string, BbTurnSignals>>();
+
+function bbTurnSignals(candles: Ohlcv[], rawParams?: IndicatorParams): BbTurnSignals {
+  let byParams = bbTurnCache.get(candles);
+  if (!byParams) {
+    byParams = new Map();
+    bbTurnCache.set(candles, byParams);
+  }
+  const key = JSON.stringify(rawParams ?? {});
+  let signals = byParams.get(key);
+  if (!signals) {
+    signals = computeBbTurnSignals(candles, rawParams);
+    byParams.set(key, signals);
+  }
+  return signals;
+}
+
 export function computeSeries(candles: Ohlcv[], series: SeriesKey, rawParams?: IndicatorParams): Series {
   switch (series) {
     case 'price.open':
@@ -274,6 +294,14 @@ export function computeSeries(candles: Ohlcv[], series: SeriesKey, rawParams?: I
       return volumeMovingAverage(candles, rawParams ?? {});
     case 'volume.ratio':
       return volumeRatio(candles, rawParams ?? {});
+    case 'bbTurn.warnTop':
+      return bbTurnSignals(candles, rawParams).warnTop;
+    case 'bbTurn.warnBottom':
+      return bbTurnSignals(candles, rawParams).warnBottom;
+    case 'bbTurn.confirmTop':
+      return bbTurnSignals(candles, rawParams).confirmTop;
+    case 'bbTurn.confirmBottom':
+      return bbTurnSignals(candles, rawParams).confirmBottom;
     default: {
       const exhaustive: never = series;
       throw new Error(`Unknown series: ${String(exhaustive)}`);

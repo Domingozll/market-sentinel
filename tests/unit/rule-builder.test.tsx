@@ -72,6 +72,22 @@ describe('RuleBuilder', () => {
     expect(input).toHaveValue('0.5');
   });
 
+
+  it('selects the midline-turn signal with a >= 1 default and exposes its parameters', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.selectOptions(screen.getByLabelText('条件 1 指标'), 'bbTurn.warnTop');
+    expect(screen.getByLabelText('条件 1 指标')).toHaveValue('bbTurn.warnTop');
+    expect(screen.getByLabelText('条件 1 比较符')).toHaveValue('gte');
+    expect(screen.getByLabelText('条件 1 右侧类型')).toHaveValue('number');
+    expect(screen.getByLabelText('条件 1 阈值')).toHaveValue('1');
+    expect(screen.getByLabelText('左侧中线周期')).toHaveValue(20);
+    expect(screen.getByLabelText('左侧减速窗口')).toHaveValue(12);
+    expect(screen.getByLabelText('左侧触发门槛')).toHaveValue(1);
+    expect(screen.getByLabelText('左侧标准化窗口')).toHaveValue(200);
+    expect(screen.getByText(/信号指标：1 = 本根触发/)).toBeInTheDocument();
+  });
+
   it('creates a nested group and respects the maximum condition count', async () => {
     const user = userEvent.setup();
     render(<Harness />);
