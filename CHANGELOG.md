@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Margin-return stops below the unavoidable round-trip fee/slippage cost now return a clear minimum-return error and a pre-calculation cost warning instead of an opaque stop-price direction error.
 - Position calculator now invalidates in-flight requests when parameters change and labels each result with its calculation timestamp and server-side parameter snapshot, avoiding stale-result confusion.
 - Take-profit now supports the same margin-return mode as stop-loss, solving the target price from net PnL including fees and slippage.
 - Batch position replay now skips a signal that arrives while the current position is still open instead of force-closing the position; skipped signals are reported by index.
@@ -80,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Margin-return stops below the unavoidable round-trip fee/slippage cost now return a clear minimum-return error and a pre-calculation cost warning instead of an opaque stop-price direction error.
 - Position calculator now invalidates in-flight requests when parameters change and labels each result with its calculation timestamp and server-side parameter snapshot, avoiding stale-result confusion.
 - Take-profit now supports the same margin-return mode as stop-loss, solving the target price from net PnL including fees and slippage.
 - Batch position replay now skips a signal that arrives while the current position is still open instead of force-closing the position; skipped signals are reported by index.

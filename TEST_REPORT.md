@@ -25,9 +25,9 @@
 | 测试层 | 结果 |
 |---|---|
 | TypeScript 类型检查 | 通过 |
-| 单元 + 集成测试 | **30 个测试文件，163 个测试全部通过**（~2s 测试耗时） |
+| 单元 + 集成测试 | **30 个测试文件，164 个测试全部通过**（~2s 测试耗时） |
 | 浏览器 E2E | **17 个场景全部通过**（~29s） |
-| 构建 | 通过（Vite + esbuild；服务端 243 KB，主前端 1.52 MB / 494 KB gzip；KLineChart 共享懒加载 chunk 265 KB / 70 KB gzip；回放页 chunk 19 KB / 6 KB gzip） |
+| 构建 | 通过（Vite + esbuild；服务端 244 KB，主前端 1.52 MB / 494 KB gzip；KLineChart 共享懒加载 chunk 265 KB / 70 KB gzip；回放页 chunk 19 KB / 6 KB gzip） |
 | 依赖安全审计 | `npm audit`、`npm audit --omit=dev` 均为 **0 vulnerabilities** |
 | Docker 镜像 | `market-sentinel:1.0.0`，约 266 MB |
 | 容器健康 | `healthy` |
@@ -65,7 +65,7 @@ http://127.0.0.1:8787
 | `tests/integration/chart-api.test.ts` | 3 | K 线 before 分页、非法参数、SSE 首帧与响应头 |
 | `tests/unit/replay-period.test.ts` | 5 | 自定义日期归一化、时区/夏令时、全天/每日时段、跨午夜、非法输入 |
 | `tests/unit/us-market-calendar.test.ts` | 5 | 周末、常规 NYSE 节假日、观测日、耶稣受难日、Juneteenth、早收盘、历史临时休市 |
-| `tests/unit/position-calculator.test.ts` | 15 | 多空单笔/批量复利、手续费/滑点、百分比与指标止盈止损、跳空/同K线止损、强平、盈亏比与错误参数 |
+| `tests/unit/position-calculator.test.ts` | 16 | 多空单笔/批量复利、手续费/滑点、百分比与指标止盈止损、跳空/同K线止损、强平、盈亏比与错误参数 |
 | `tests/integration/rule-filter.test.ts` | 2 | 美股过滤开关 CRUD、负数/小数阈值持久化、非法过滤值拒绝 |
 | `tests/integration/rule-replay.test.ts` | 5 | 已保存规则回放 API、图表周期、触发元数据、记录保存/读取、规则版本更新后新快照、仓位计算 API、非法参数/规则 404 |
 | `tests/integration/replay-async.test.ts` | 1 | 异步回放任务持久化、预估耗时、自定义区间完成/保存 |
@@ -248,6 +248,7 @@ E2E 同时检查浏览器 console error 与 page error，最终为 0。
 | 30 | 批量回放遇到下一信号时即使未到止盈止损也强制平仓 | 改为跳过重叠信号：当前仓位继续持有至止盈/止损/区间结束，跳过的信号不补开；缓存升至 v5，E2E 断言跳过数 |
 | 31 | 止盈缺少保证金收益率模式，与止损选项不一致 | 止盈/止损使用同一套模式；收益率止盈按净盈利/仓位保证金反推目标价，计入手续费和滑点；缓存升至 v6 |
 | 32 | 计算完成后修改参数再计算，疑似复用上一次结果 | 参数变更立即清空结果并递增请求版本；旧响应不能覆盖；结果头显示计算时间与服务端参数快照；E2E 验证本金 1000→2000 权益变化 |
+| 33 | 100x 下 10% 收益率止损报“止损价不在开仓价上方” | 开仓+平仓成本已超过10%保证金，收益率止损无解；改为明确提示最低可行收益率、成本口径，并在参数区提前显示 |
 | 25 | 40x 杠杆配 40% 止损时止损价远高于强平价，用户误以为止损应生效 | 明确提示止损超过估算强平价、止损比例×杠杆≥100%；默认杠杆改为 1x |
 
 ## 7. 已知限制 / 未覆盖项

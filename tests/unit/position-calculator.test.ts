@@ -301,6 +301,23 @@ describe('position calculator', () => {
     expect(trade.stopBeyondLiquidation).toBe(false);
   });
 
+  it('rejects a margin-return stop below unavoidable entry costs', () => {
+    expect(() => calculatePositions({
+      triggers: [trigger()],
+      triggerIndexes: [0],
+      candles: [candle(300_000, 100, 101, 99, 100)],
+      timeframeMs: tfMs,
+      endTime: 900_000,
+      config: config({
+        leverage: 100,
+        feeRatePct: 0.05,
+        slippagePct: 0.02,
+        target: { mode: 'none' },
+        stop: { mode: 'roi', roiPercent: 10 },
+      }),
+    })).toThrow(/低于开仓\+平仓成本/);
+  });
+
   it('supports a net margin-return take-profit by solving the target price', () => {
     const result = calculatePositions({
       triggers: [trigger()],

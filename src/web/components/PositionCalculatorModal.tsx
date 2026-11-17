@@ -214,6 +214,8 @@ export function PositionCalculatorModal({
   const stopBeyondLiquidation = effectiveStopMovePct !== null
     && liquidationDistancePct !== null
     && effectiveStopMovePct >= liquidationDistancePct;
+  const roiEntryCostPct = config.leverage * (2 * config.feeRatePct + config.slippagePct + (config.slippagePct * config.feeRatePct) / 100);
+  const stopRoiBelowEntryCost = stopRoiPercent !== null && stopRoiPercent <= roiEntryCostPct;
 
   return (
     <Modal
@@ -259,14 +261,16 @@ export function PositionCalculatorModal({
         </div>
 
         {liquidationDistancePct !== null ? (
-          <div className={`position-risk-hint${stopBeyondLiquidation ? ' danger' : ''}`}>
+          <div className={`position-risk-hint${stopBeyondLiquidation || stopRoiBelowEntryCost ? ' danger' : ''}`}>
             <TriangleAlert size={13} />
             <span>
               {config.leverage}x 估算强平距离约 {liquidationDistancePct.toFixed(2)}%（按逐仓、忽略维持保证金与资金费估算）。
               {stopPercent === null && stopRoiPercent === null
                 ? ' 未设置百分比止损。'
                 : stopRoiPercent !== null
-                  ? ` 当前保证金收益率止损 ${stopRoiPercent}% 约对应价格反向 ${effectiveStopMovePct?.toFixed(3)}%；${stopBeyondLiquidation ? '它在强平价之外，实际会先触发强平。' : '它位于估算强平之前，会按净盈亏约 −' + stopRoiPercent + '% 触发。'}`
+                  ? stopRoiBelowEntryCost
+                    ? ` 当前保证金收益率止损 ${stopRoiPercent}% 低于手续费+滑点的入场成本约 ${roiEntryCostPct.toFixed(2)}% 保证金，开仓时已经超过该止损线；请提高止损收益率，或降低杠杆/手续费/滑点。`
+                    : ` 当前保证金收益率止损 ${stopRoiPercent}% 约对应价格反向 ${effectiveStopMovePct?.toFixed(3)}%；${stopBeyondLiquidation ? '它在强平价之外，实际会先触发强平。' : '它位于估算强平之前，会按净盈亏约 −' + stopRoiPercent + '% 触发。'}`
                   : stopBeyondLiquidation
                     ? ` 当前价格比例止损 ${stopPercent}% 在强平价之外，实际会先触发强平；如需止损先生效，请降低杠杆到约 ${Math.floor(100 / (stopPercent ?? 1))}x 以下，或把止损比例降到约 ${liquidationDistancePct.toFixed(2)}% 以内。`
                     : ` 当前价格比例止损 ${stopPercent}% 位于估算强平之前，止损可以先生效。`}

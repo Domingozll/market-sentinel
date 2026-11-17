@@ -134,8 +134,17 @@ function priceForMarginRoi(
 ): number {
   const targetNet = (side === 'target' ? 1 : -1) * (margin * roiPct) / 100;
   const atEntry = plannedNet(quantity, entry, entry, direction, config);
-  if (side === 'stop' && targetNet >= atEntry) return entry;
-  if (side === 'target' && targetNet <= atEntry) return entry;
+  const entryCostPct = (-atEntry / margin) * 100;
+  if (side === 'stop' && targetNet >= atEntry) {
+    throw new PositionCalcError(
+      `止损收益率 ${roiPct}% 低于开仓+平仓成本约 ${entryCostPct.toFixed(2)}% 保证金；开仓时已超过该止损线，请把止损收益率提高到约 ${(Math.floor(entryCostPct * 100) / 100 + 0.01).toFixed(2)}% 以上，或降低杠杆/手续费/滑点`,
+    );
+  }
+  if (side === 'target' && targetNet <= atEntry) {
+    throw new PositionCalcError(
+      `止盈收益率 ${roiPct}% 低于开仓+平仓成本约 ${entryCostPct.toFixed(2)}% 保证金；请提高止盈收益率或降低杠杆/手续费/滑点`,
+    );
+  }
 
   let low: number;
   let high: number;
