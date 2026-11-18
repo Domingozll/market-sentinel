@@ -13,6 +13,7 @@ import {
   type SeriesKey,
   type Timeframe,
   TIMEFRAMES,
+  TF_MS,
   TRIGGER_MODES,
   defaultParamsFor,
   normalizeParams,
@@ -305,12 +306,41 @@ export function parseRuleInput(raw: unknown): ParseResult {
     skipUsNonTradingDays: skipUsNonTradingDays === true,
   };
   const warnings = collectWarnings(expression, errors);
-  if (draft.triggerMode === 'intrabar') {
-    const usesTurn = flattenConditions(expression).some((condition) =>
-      condition.left.series.startsWith('bbTurn.')
-      || (condition.right.type === 'series' && condition.right.series.startsWith('bbTurn.')),
+  const conditions = flattenConditions(expression);
+  const turnConditions = conditions.filter((condition) =>
+    condition.left.series.startsWith('bbTurn.')
+    || (condition.right.type === 'series' && condition.right.series.startsWith('bbTurn.')),
+  );
+  if (turnConditions.length) {
+    const turnTimeframes = new Set(turnConditions.map((condition) => condition.timeframe));
+    if (turnTimeframes.has('1m')) {
+      warnings.push({
+        code: 'bbturn.timeframe-1m',
+        message: '布林中线拐点在 1m 上噪声较高；研究建议优先使用 5m 或 15m',
+      });
+    }
+    if ([...turnTimeframes].some((timeframe) => TF_MS[timeframe] >= TF_MS['1H'])) {
+      warnings.push({
+        code: 'bbturn.timeframe-long',
+        message: '布林中线拐点在 1H 及以上周期样本稀疏、提升衰减；研究建议只用于 5m/15m',
+      });
+    }
+    if (turnConditions.length === conditions.length) {
+      warnings.push({
+        code: 'bbturn.standalone',
+        message: '该指标是“中线状态尺”，不提供价格方向；单独作为入场条件时命中率低，建议叠加趋势或价格过滤',
+      });
+    }
+    const onlyConfirm = turnConditions.every((condition) =>
+      condition.left.series.endsWith('.confirmTop') || condition.left.series.endsWith('.confirmBottom'),
     );
-    if (usesTurn) {
+    if (onlyConfirm) {
+      warnings.push({
+        code: 'bbturn.confirm-lag',
+        message: '确认信号出现在中线已经转向之后，滞后于价格；预测用途应优先使用预警信号',
+      });
+    }
+    if (draft.triggerMode === 'intrabar') {
       warnings.push({
         code: 'bbturn.intrabar',
         message: '布林中线拐点只使用已收盘 K 线；盘中模式不会在形成中的 K 线上产生该信号',

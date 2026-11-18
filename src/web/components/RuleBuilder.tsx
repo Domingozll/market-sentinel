@@ -399,7 +399,7 @@ function ConditionEditor({
       <div className="param-fields">
         <span className="form-hint">{SERIES_CATALOG[condition.left.series].label}{seriesParamsLabel(condition.left.series, condition.left.params) ? `(${seriesParamsLabel(condition.left.series, condition.left.params)})` : ''}</span>
         {condition.left.series.startsWith('bbTurn.') ? (
-          <span className="form-hint" style={{ color: '#8fbfae' }}>信号指标：1 = 本根触发，0 = 未触发；建议比较 ≥ 1</span>
+          <span className="form-hint" style={{ color: '#8fbfae' }}>信号指标：1 = 本根触发；建议 5m/15m，仅作状态过滤，不单独作为入场</span>
         ) : null}
         {SERIES_CATALOG[condition.left.series].paramsKind ? (
           <ParamInputs

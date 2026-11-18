@@ -5,6 +5,7 @@ import {
   type ConditionGroup,
   type NumericRef,
   type RuleDraft,
+  type ExpressionNode,
   type SeriesKey,
   type Timeframe,
   type TriggerMode,
@@ -44,7 +45,7 @@ function seriesRight(series: SeriesKey): NumericRef {
   return { type: 'series', series, params: defaultParamsFor(series) };
 }
 
-function group(children: Condition[] , op: 'AND' | 'OR' = 'AND'): ConditionGroup {
+function group(children: ExpressionNode[], op: 'AND' | 'OR' = 'AND'): ConditionGroup {
   return { kind: 'group', op, children };
 }
 
@@ -74,6 +75,26 @@ export function createTemplates(): RuleTemplate[] {
         ...common,
         name: '5m 中轨转弱',
         expression: group([condition('5m', 'bb.midSlope', 'lt', { type: 'number', value: 0 })]),
+      },
+    },
+    {
+      key: 'bb-turn-filter',
+      title: '15m 拐点 + 5m 方向过滤',
+      description: '15m 中线拐点预警，且 5m 中轨方向一致；只作为状态过滤，不单独作为入场',
+      draft: {
+        ...common,
+        name: '15m 拐点 + 5m 方向过滤',
+        note: '状态过滤，不单独入场',
+        expression: group([
+          group([
+            condition('15m', 'bbTurn.warnTop', 'gte', { type: 'number', value: 1 }),
+            condition('5m', 'bb.midSlope', 'lt', { type: 'number', value: 0 }),
+          ]),
+          group([
+            condition('15m', 'bbTurn.warnBottom', 'gte', { type: 'number', value: 1 }),
+            condition('5m', 'bb.midSlope', 'gt', { type: 'number', value: 0 }),
+          ]),
+        ], 'OR'),
       },
     },
     {

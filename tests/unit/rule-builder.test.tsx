@@ -84,8 +84,9 @@ describe('RuleBuilder', () => {
     expect(screen.getByLabelText('左侧中线周期')).toHaveValue(20);
     expect(screen.getByLabelText('左侧减速窗口')).toHaveValue(12);
     expect(screen.getByLabelText('左侧触发门槛')).toHaveValue(1);
-    expect(screen.getByLabelText('左侧标准化窗口')).toHaveValue(200);
+    expect(screen.getByLabelText('左侧标准化窗口')).toHaveValue(500);
     expect(screen.getByText(/信号指标：1 = 本根触发/)).toBeInTheDocument();
+    expect(screen.getByText(/仅作状态过滤/)).toBeInTheDocument();
   });
 
   it('creates a nested group and respects the maximum condition count', async () => {

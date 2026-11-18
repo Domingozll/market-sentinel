@@ -9,7 +9,7 @@ import {
   type SeriesKey,
   type IndicatorParams,
 } from '../../shared/types';
-import { MIN_HISTORY_BARS } from '../../shared/types';
+import { MIN_HISTORY_BARS, BB_TURN_HISTORY_BARS } from '../../shared/types';
 import type { Candle } from '../../shared/types';
 import type { Series } from '../indicators';
 import { compareValues, computeSeries } from '../indicators';
@@ -49,14 +49,27 @@ export function evaluateRule(
 ): EvaluationOutcome {
   const timeframes = collectTimeframes(rule.expression);
   const dataByTimeframe = new Map<Timeframe, TimeframeData>();
+  const needsTurnHistory = flattenConditions(rule.expression).some((condition) =>
+    condition.left.series.startsWith('bbTurn.')
+    || (condition.right.type === 'series' && condition.right.series.startsWith('bbTurn.')),
+  );
+  const historyLimit = needsTurnHistory ? BB_TURN_HISTORY_BARS : 320;
 
   for (const timeframe of timeframes) {
-    const closed = provider.getClosedCandles(symbol, timeframe, 320);
+    const closed = provider.getClosedCandles(symbol, timeframe, historyLimit);
     if (closed.length < MIN_HISTORY_BARS) {
       return {
         ok: false,
         reason: 'history',
         message: `${symbol} ${timeframe} 预热数据不足（${closed.length}/${MIN_HISTORY_BARS}）`,
+        timeframe,
+      };
+    }
+    if (needsTurnHistory && closed.length < BB_TURN_HISTORY_BARS) {
+      return {
+        ok: false,
+        reason: 'history',
+        message: `${symbol} ${timeframe} 布林中线拐点至少需要 ${BB_TURN_HISTORY_BARS} 根已收盘 K 线（当前 ${closed.length}）`,
         timeframe,
       };
     }
@@ -79,7 +92,7 @@ export function evaluateRule(
     }
     let allCandles = closed;
     if (rule.triggerMode === 'intrabar' && !forceClosed) {
-      const includingForming = provider.getCandlesIncludingForming(symbol, timeframe, 320);
+      const includingForming = provider.getCandlesIncludingForming(symbol, timeframe, historyLimit);
       const last = includingForming[includingForming.length - 1];
       if (last && !last.confirm) allCandles = includingForming;
     }

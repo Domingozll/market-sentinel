@@ -4,6 +4,7 @@ import {
   type MarketPairStatus,
   type Timeframe,
   TF_MS,
+  BB_TURN_HISTORY_BARS,
 } from '../../shared/types';
 import { MIN_HISTORY_BARS } from '../../shared/types';
 import type { AppConfig } from '../config';
@@ -19,6 +20,14 @@ import {
   hasContinuousCandles,
   isLatestClosedBarFresh,
 } from './time';
+
+const LIVE_HISTORY_BARS = BB_TURN_HISTORY_BARS;
+
+function mergeCandles(...groups: Candle[][]): Candle[] {
+  const byOpen = new Map<number, Candle>();
+  for (const group of groups) for (const candle of group) byOpen.set(candle.openTime, candle);
+  return [...byOpen.values()].sort((a, b) => a.openTime - b.openTime);
+}
 
 interface PairState {
   instId: string;
@@ -200,23 +209,45 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
   }
 
   private async loadInitialCandles(state: PairState): Promise<Candle[]> {
-    const cached = this.store.getCandles(state.instId, state.timeframe, 300, true);
+    // The BB midline-turn detector needs a cold start of at least
+    // z_window(500) + warmup(150) bars. Keep the live cache large enough for
+    // the same detector semantics used by trial/replay.
+    const target = LIVE_HISTORY_BARS;
+    const cached = this.store.getCandles(state.instId, state.timeframe, target, true);
+    let recent: Candle[] = [];
     try {
-      const candles = await this.rest.getCandles(state.instId, state.timeframe, 300);
-      const closed = candles.filter((candle) => candle.confirm);
-      if (closed.length) this.store.upsertCandles(closed);
-      return closed.length ? closed : cached;
+      recent = (await this.rest.getCandles(state.instId, state.timeframe, 300))
+        .filter((candle) => candle.confirm);
     } catch (error) {
-      if (cached.length) return cached;
-      throw error;
+      if (!cached.length) throw error;
     }
+
+    let merged = mergeCandles(cached, recent);
+    if (merged.length < target) {
+      try {
+        const now = this.exchangeNow();
+        const older = await this.rest.fetchHistoryWindow(
+          state.instId,
+          state.timeframe,
+          now - target * TF_MS[state.timeframe],
+          now,
+          12,
+        );
+        merged = mergeCandles(older.filter((candle) => candle.confirm), merged);
+      } catch {
+        // Local-only or restricted endpoints may not expose history. The
+        // recent page is still usable; the detector will warm up over time.
+      }
+    }
+    if (merged.length) this.store.upsertCandles(merged);
+    return merged.slice(-target);
   }
 
   private async initializePair(state: PairState): Promise<void> {
     try {
       state.status = 'warming';
       const candles = await this.loadInitialCandles(state);
-      state.candles = candles.slice(-300);
+      state.candles = candles.slice(-LIVE_HISTORY_BARS);
       state.initialized = state.candles.length > 0;
       state.lastReceivedAt = Date.now();
       state.lastError = null;
@@ -274,7 +305,10 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
   hasContinuousHistory(instId: string, timeframe: Timeframe): boolean {
     const state = this.getState(instId, timeframe);
     if (!state || state.candles.length < MIN_HISTORY_BARS) return false;
-    return hasContinuousCandles(state.candles, MIN_HISTORY_BARS);
+    // Check all retained bars up to the detector warmup window. Older gaps
+    // would silently corrupt MA/robust-z windows even though the last 200 bars
+    // look healthy.
+    return hasContinuousCandles(state.candles, Math.min(state.candles.length, LIVE_HISTORY_BARS));
   }
 
   getPairStatus(instId: string, timeframe: Timeframe): MarketPairStatus {
@@ -350,7 +384,7 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
         return;
       }
       state.candles.push(candle);
-      if (state.candles.length > 320) state.candles = state.candles.slice(-320);
+      if (state.candles.length > LIVE_HISTORY_BARS) state.candles = state.candles.slice(-LIVE_HISTORY_BARS);
       this.store.upsertCandles([candle]);
       state.initialized = true;
       state.status = this.computeState(state);
@@ -366,15 +400,14 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
 
   private async handleGap(state: PairState): Promise<void> {
     try {
-      const fresh = await this.rest.getCandles(state.instId, state.timeframe, 300);
-      const closed = fresh.filter((c) => c.confirm);
-      if (!closed.length) throw new Error('补洞返回空数据');
-      state.candles = closed;
+      const fresh = await this.loadInitialCandles(state);
+      if (!fresh.length) throw new Error('补洞返回空数据');
+      state.candles = fresh;
       state.forming = null;
       state.initialized = true;
       state.lastError = null;
       state.status = this.computeState(state);
-      this.store.upsertCandles(closed);
+      this.store.upsertCandles(fresh);
       this.emit('resync', [{ instId: state.instId, timeframe: state.timeframe }]);
       this.emit('status', this.listPairStatuses());
     } catch (error) {
@@ -397,7 +430,7 @@ export class MarketService extends EventEmitter implements MarketDataProvider {
           const fresh = await this.rest.getCandles(pair.instId, pair.timeframe, 300);
           const closed = fresh.filter((c) => c.confirm);
           if (!closed.length) throw new Error('重连补数据为空');
-          state.candles = closed.slice(-300);
+          state.candles = mergeCandles(state.candles, closed).slice(-LIVE_HISTORY_BARS);
           state.forming = null;
           state.initialized = true;
           state.lastReceivedAt = Date.now();

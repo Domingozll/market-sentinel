@@ -37,7 +37,7 @@ function ruleWithTurn() {
         kind: 'condition',
         id: 'c1',
         timeframe: '5m',
-        left: { series: 'bbTurn.warnTop', params: { length: 20, mDec: 12, zOn: 1, zWindow: 200 } },
+        left: { series: 'bbTurn.warnTop', params: { length: 20, mDec: 12, zOn: 1, zWindow: 500 } },
         cmp: 'gte',
         right: { type: 'number', value: 1 },
       }],
@@ -109,6 +109,27 @@ describe('BB midline turn detector', () => {
     expect(intrabar.ok).toBe(true);
     if (intrabar.ok) {
       expect(intrabar.value.warnings.some((warning) => warning.code === 'bbturn.intrabar')).toBe(true);
+    }
+    const oneMinute = parseRuleInput({
+      ...ruleWithTurn(),
+      expression: {
+        kind: 'group',
+        op: 'AND',
+        children: [{
+          kind: 'condition',
+          id: 'c1',
+          timeframe: '1m',
+          left: { series: 'bbTurn.warnTop' },
+          cmp: 'gte',
+          right: { type: 'number', value: 1 },
+        }],
+      },
+    });
+    expect(oneMinute.ok).toBe(true);
+    if (oneMinute.ok) {
+      expect(oneMinute.value.warnings.map((warning) => warning.code)).toEqual(
+        expect.arrayContaining(['bbturn.timeframe-1m', 'bbturn.standalone']),
+      );
     }
   });
 });

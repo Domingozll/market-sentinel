@@ -131,8 +131,8 @@ export const SERIES_CATALOG: Record<SeriesKey, SeriesMeta> = {
   'volume.ratio': { key: 'volume.ratio', label: '量能倍数', group: 'volume', groupLabel: '成交量', unit: 'ratio', description: '当前成交量 / 成交量 SMA(N)', paramsKind: 'volume' },
   'bbTurn.warnTop': { key: 'bbTurn.warnTop', label: '中线见顶预警', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '预测布林中线在未来若干根内见顶；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
   'bbTurn.warnBottom': { key: 'bbTurn.warnBottom', label: '中线见底预警', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '预测布林中线在未来若干根内见底；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
-  'bbTurn.confirmTop': { key: 'bbTurn.confirmTop', label: '中线见顶确认', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '布林中线斜率已向下穿过死区；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
-  'bbTurn.confirmBottom': { key: 'bbTurn.confirmBottom', label: '中线见底确认', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '布林中线斜率已向上穿过死区；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
+  'bbTurn.confirmTop': { key: 'bbTurn.confirmTop', label: '中线见顶确认（滞后）', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '布林中线斜率已向下穿过死区；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
+  'bbTurn.confirmBottom': { key: 'bbTurn.confirmBottom', label: '中线见底确认（滞后）', group: 'bbTurn', groupLabel: '布林中线拐点', unit: 'signal', description: '布林中线斜率已向上穿过死区；1=本根触发，0=未触发', paramsKind: 'bbTurn' },
 };
 
 export const SERIES_GROUPS: { key: SeriesGroup; label: string; series: SeriesKey[] }[] = [
@@ -166,7 +166,7 @@ export const DEFAULT_PARAMS = {
   rsi: { length: 14 },
   macd: { fast: 12, slow: 26, signal: 9 },
   volume: { maLength: 20 },
-  bbTurn: { length: 20, mDec: 12, zOn: 1.0, zWindow: 200 },
+  bbTurn: { length: 20, mDec: 12, zOn: 1.0, zWindow: 500 },
 } as const;
 
 export function defaultParamsFor(series: SeriesKey): IndicatorParams {
@@ -233,6 +233,8 @@ export interface Rule extends RuleDraft {
 export const MAX_CONDITIONS = 12;
 export const MAX_GROUP_DEPTH = 3;
 export const MIN_HISTORY_BARS = 200;
+/** Cold-start bars required by the BB midline-turn detector (z=500 + warmup=150). */
+export const BB_TURN_HISTORY_BARS = 650;
 export const DEFAULT_COOLDOWN_SEC = 300;
 export const DEFAULT_RETENTION_DAYS = 90;
 export const MAX_ALERT_GRACE_MS = 120_000;

@@ -6,6 +6,7 @@ import {
   type Timeframe,
   type TrialResult,
   MIN_HISTORY_BARS,
+  BB_TURN_HISTORY_BARS,
   TF_MS,
   normalizeParams,
   type IndicatorParams,
@@ -171,6 +172,16 @@ export async function runTrial(options: {
   }
 
   const conditions = flattenConditions(draft.expression);
+  const turnConditions = conditions.filter((condition) =>
+    condition.left.series.startsWith('bbTurn.')
+    || (condition.right.type === 'series' && condition.right.series.startsWith('bbTurn.')),
+  );
+  for (const condition of turnConditions) {
+    const bars = histories.get(condition.timeframe)?.candles.length ?? 0;
+    if (bars < BB_TURN_HISTORY_BARS) {
+      throw new TrialError(`${options.symbol} ${condition.timeframe} 布林中线拐点至少需要 ${BB_TURN_HISTORY_BARS} 根 K 线（当前 ${bars}），请扩大回放窗口`, 422);
+    }
+  }
   const prepared: PreparedCondition[] = conditions.map((condition, conditionIndex) => {
     const history = histories.get(condition.timeframe)!;
     const leftParams = normalizeParams(condition.left.series, condition.left.params);

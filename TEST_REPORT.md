@@ -58,7 +58,7 @@ http://127.0.0.1:8787
 | `tests/unit/soak.test.ts` | 1 | 864 根未来 5m K 线（3 天）加速回放：事件不丢不重、无异常 |
 | `tests/unit/web-format.test.ts` | 6 | 时间/数字/时长格式化、状态映射、自然语言摘要、模板 schema |
 | `tests/unit/rule-builder.test.tsx` | 4 | 条件构建器交互、拐点信号默认 ≥1、参数控件、负数/小数阈值输入、AND/OR、添加/删除、条件数量上限 |
-| `tests/unit/bb-turn.test.ts` | 4 | 曲率拐点信号、确认信号、收盘/forming K 线、因果前缀、参数校验与规则摘要 |
+| `tests/unit/bb-turn.test.ts` | 4 | 曲率拐点信号、确认信号、收盘/forming K 线、因果前缀、参数校验、1m/独立使用提示与规则摘要 |
 | `tests/unit/chart-indicators.test.ts` | 5 | 图表指标默认值、范围钳制、MACD 关系、图例标签、localStorage 持久化 |
 | `tests/unit/chart-indicator-panel.test.tsx` | 2 | 指标面板开关、参数编辑、恢复默认、Escape 关闭 |
 | `tests/unit/indicator-readout.test.ts` | 2 | 指标名称/参数/当前值图例、隐藏指标、空数据 |

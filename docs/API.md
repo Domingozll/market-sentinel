@@ -153,12 +153,12 @@ Market Sentinel 的 HTTP API 与 Web UI 使用同一套 Fastify 路由。默认�
 - `bbTurn.warnTop` / `bbTurn.warnBottom`：预测中线见顶 / 见底，`1` 表示本根触发。
 - `bbTurn.confirmTop` / `bbTurn.confirmBottom`：中线斜率已向下 / 向上穿过死区，`1` 表示本根触发。
 
-参数：`length`（中线周期，默认 20）、`mDec`（减速窗口，默认 12）、`zOn`（触发门槛，默认 1.0）、`zWindow`（标准化窗口，默认 200）。只使用已收盘 K 线；典型条件为 `bbTurn.warnTop >= 1`。
+参数：`length`（中线周期，默认 20）、`mDec`（减速窗口，默认 12）、`zOn`（触发门槛，默认 1.0）、`zWindow`（标准化窗口，默认 500，实时缓存至少保留 650 根）。只使用已收盘 K 线；典型条件为 `bbTurn.warnTop >= 1`。
 
 ```json
 {
   "timeframe": "15m",
-  "left": { "series": "bbTurn.warnTop", "params": { "length": 20, "mDec": 12, "zOn": 1, "zWindow": 200 } },
+  "left": { "series": "bbTurn.warnTop", "params": { "length": 20, "mDec": 12, "zOn": 1, "zWindow": 500 } },
   "cmp": "gte",
   "right": { "type": "number", "value": 1 }
 }
